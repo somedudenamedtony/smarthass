@@ -1,0 +1,93 @@
+import NextAuth from "next-auth";
+import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import GitHub from "next-auth/providers/github";
+import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import * as schema from "@/db/schema";
+import { isSelfHosted, isCloud } from "@/lib/config";
+
+function getProviders() {
+  const providers = [];
+
+  if (isCloud()) {
+    if (process.env.AUTH_GITHUB_ID) {
+      providers.push(GitHub);
+    }
+    if (process.env.AUTH_GOOGLE_ID) {
+      providers.push(Google);
+    }
+  }
+
+  if (isSelfHosted()) {
+    providers.push(
+      Credentials({
+        name: "credentials",
+        credentials: {
+          email: { label: "Email", type: "email" },
+          password: { label: "Password", type: "password" },
+        },
+        async authorize(credentials) {
+          if (!credentials?.email || !credentials?.password) return null;
+
+          const email = credentials.email as string;
+          const password = credentials.password as string;
+
+          const user = await db
+            .select()
+            .from(schema.users)
+            .where(eq(schema.users.email, email))
+            .limit(1);
+
+          if (!user[0]?.passwordHash) return null;
+
+          const valid = await bcrypt.compare(password, user[0].passwordHash);
+          if (!valid) return null;
+
+          return {
+            id: user[0].id,
+            name: user[0].name,
+            email: user[0].email,
+            image: user[0].image,
+          };
+        },
+      })
+    );
+  }
+
+  return providers;
+}
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  adapter: DrizzleAdapter(db, {
+    usersTable: schema.users,
+    accountsTable: schema.accounts,
+    sessionsTable: schema.sessions,
+    verificationTokensTable: schema.verificationTokens,
+  }),
+  providers: getProviders(),
+  session: {
+    strategy: isSelfHosted() ? "jwt" : "database",
+  },
+  pages: {
+    signIn: "/login",
+  },
+  callbacks: {
+    async session({ session, token, user }) {
+      if (token?.sub) {
+        session.user.id = token.sub;
+      } else if (user?.id) {
+        session.user.id = user.id;
+      }
+      return session;
+    },
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+      }
+      return token;
+    },
+  },
+});

@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DEPLOY_MODE=self-hosted
+      - DATABASE_URL=postgresql://smarthass:smarthass@db:5432/smarthass
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_URL=http://localhost:3000
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SYNC_CRON_SCHEDULE=${SYNC_CRON_SCHEDULE:-0 3 * * *}
+      - ANALYSIS_CRON_SCHEDULE=${ANALYSIS_CRON_SCHEDULE:-0 4 * * 0}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=smarthass
+      - POSTGRES_PASSWORD=smarthass
+      - POSTGRES_DB=smarthass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smarthass"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

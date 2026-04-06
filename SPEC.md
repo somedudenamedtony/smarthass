@@ -225,162 +225,195 @@ Used for real-time subscriptions (`subscribe_events` for `state_changed`), servi
 
 ## Implementation Phases
 
-### Phase 1: Project Scaffolding & Infrastructure
+### Phase 1: Project Scaffolding & Infrastructure ✅
 
-1. Initialize Next.js 15 project with App Router, TypeScript, Tailwind CSS, ESLint
-2. Install and configure shadcn/ui (default theme)
-3. Set up Drizzle ORM with conditional driver — Neon HTTP (`@neondatabase/serverless`) when `DATABASE_URL` contains `neon.tech`, otherwise `node-postgres` (`pg`)
-4. Define database schema (all tables above) and run initial migration
-5. Set up NextAuth.js v5 with Drizzle adapter — GitHub + Google OAuth providers (cloud) and credentials provider (self-hosted, controlled by `DEPLOY_MODE` env var)
-6. Configure environment variables structure (`.env.local` template, `.env.example`) with `DEPLOY_MODE=cloud|self-hosted`
-7. Set up project layout: `src/app/`, `src/db/`, `src/lib/`, `src/components/`
-8. Create `Dockerfile` and `docker-compose.yml` (Next.js + Postgres) for self-hosted deployment
-9. Create `src/lib/scheduler.ts` — conditional scheduler: no-op on Vercel (uses Vercel Cron), `node-cron` jobs when `DEPLOY_MODE=self-hosted`
+1. ✅ Initialize Next.js 15 project with App Router, TypeScript, Tailwind CSS, ESLint
+2. ✅ Install and configure shadcn/ui (default theme)
+3. ✅ Set up Drizzle ORM with conditional driver — Neon HTTP (`@neondatabase/serverless`) when `DATABASE_URL` contains `neon.tech`, otherwise `node-postgres` (`pg`)
+4. ✅ Define database schema (all 10 tables + relations) — migration not yet run (no DB connected)
+5. ✅ Set up NextAuth.js v5 with Drizzle adapter — GitHub + Google OAuth providers (cloud) and credentials provider (self-hosted, controlled by `DEPLOY_MODE` env var)
+6. ✅ Configure environment variables structure (`.env.example`) with `DEPLOY_MODE=cloud|self-hosted`
+7. ✅ Set up project layout: `src/app/`, `src/db/`, `src/lib/`, `src/components/`
+8. ✅ Create `Dockerfile` (multi-stage), `docker-compose.yml` (Next.js + Postgres 16 Alpine), `vercel.json` (cron config)
+9. ✅ Create `src/lib/scheduler.ts` — conditional scheduler: no-op on Vercel (uses Vercel Cron), `node-cron` jobs when `DEPLOY_MODE=self-hosted`
+10. ✅ Create `server.ts` — custom server entry for self-hosted (wraps Next.js + starts scheduler)
+11. ✅ Create `src/lib/config.ts` — deploy mode detection + feature flags
+12. ✅ Create `src/lib/encryption.ts` — AES-256-GCM token encryption/decryption
 
-### Phase 2: HA Connection & Data Ingestion
+### Phase 2: HA Connection & Data Ingestion ✅
 
 *Depends on Phase 1.*
 
-10. Build HA connection management UI — add/edit/remove HA instances
-11. Create server-side HA API client library (`src/lib/ha-client.ts`)
-    - REST client: `getStates()`, `getHistory()`, `getLogbook()`, `getServices()`, `getConfig()`, `getErrorLog()`
-    - WebSocket client: `subscribeStateChanges()`, `validateConfig()` (used when available — self-hosted mode)
-    - Token encryption/decryption utilities (AES-256-GCM with `ENCRYPTION_KEY` env var)
-    - Connection health check (verify token + URL, works with both public and local URLs)
-12. Build entity sync flow: pull entity registry from HA → upsert into `entities` table *(depends on 10, 11)*
-13. Build automation sync flow: pull automations from HA → upsert into `automations` table *(depends on 11)*
-14. Build on-demand history pull: fetch history from HA REST API for selected entity/time range *(depends on 11)*
-15. Set up daily sync job (`/api/cron/daily-sync`) — for each active instance, pull history for tracked entities, compute daily stats, store in `entity_daily_stats`. Triggered by Vercel Cron (cloud) or `node-cron` (self-hosted) *(depends on 12, 14)*
-16. (Self-hosted) Start WebSocket subscription on app boot for connected instances — real-time state change events update `entities` table and feed into stats *(depends on 11, 12)*
+13. ✅ Create server-side HA API client library (`src/lib/ha-client.ts`) — REST client with `healthCheck()`, `getConfig()`, `getStates()`, `getState()`, `getHistory()`, `getLogbook()`, `getServices()`, `getErrorLog()`, `callService()`, `renderTemplate()`
+14. ✅ Build HA connection management — CRUD API (`/api/ha/instances`) + Settings UI with add/edit/remove dialogs, health check on connect, token encryption
+15. ✅ Build entity sync flow (`src/lib/sync-service.ts` → `syncEntities()`) — pulls all HA states, upserts entity records
+16. ✅ Build automation sync flow (`syncAutomations()`) — pulls automation.* entities, upserts into `automations` table
+17. ✅ Build on-demand proxy routes — `/api/ha/states`, `/api/ha/history`, `/api/ha/logbook` proxy requests to HA
+18. ✅ Build manual sync trigger — `/api/ha/sync` creates sync_job, calls `fullSync()`, updates job status
+19. ✅ Build daily sync cron (`/api/cron/daily-sync`) — iterates all connected instances, runs `syncEntities()` + `syncAutomations()` + `computeDailyStats()`, records sync_jobs
+20. ✅ `computeDailyStats()` — pulls history for tracked entities, computes stateChanges, activeTime, avg/min/maxValue, stateDistribution, upserts into `entity_daily_stats`
+21. ☐ (Self-hosted) WebSocket subscription on app boot — real-time state change events *(deferred, not blocking)*
 
-### Phase 3: Dashboard & Visualization
+### Phase 3: Dashboard & Visualization ✅
 
 *Depends on Phase 2.*
 
-17. Build main dashboard layout with sidebar navigation
-    - Pages: Dashboard (overview), Entities, Automations, Insights, Settings
-18. Dashboard overview page *(depends on 12, 15)*:
-    - Instance health status card (+ WebSocket connection status indicator for self-hosted)
-    - Key metrics: total entities, active automations, state changes today
-    - Activity timeline (recent state changes from on-demand pull or WebSocket feed)
-    - Top 5 most active entities chart (D3.js bar chart)
-19. Entities page *(depends on 12, 14)*:
-    - Filterable/searchable entity table (domain, area, status)
-    - Entity detail view: current state, history chart (D3.js line chart), daily stats
-    - Toggle "track" for deep statistical tracking
-20. Automations page *(depends on 13)*:
-    - List view of all automations with enable/disable status
-    - Detail view showing trigger/condition/action breakdown
-    - Last triggered timestamp
+22. ✅ Dashboard layout (`(dashboard)/layout.tsx`) with sidebar navigation — Dashboard, Entities, Automations, Insights, Settings + auth guard
+23. ✅ Dashboard overview page — instance health card, 4 metric cards (total entities, active automations, tracked entities, state changes today), top 5 most active entities bar chart (D3.js), domain distribution donut chart (D3.js), recent activity feed. Multi-instance selector. Backed by `/api/dashboard/stats`.
+24. ✅ D3.js chart components — `TopEntitiesChart` (horizontal bar), `DomainDistributionChart` (donut with legend), `EntityHistoryChart` (numeric line chart for sensors, colored state bands for binary/categorical)
+25. ✅ Entities list page — filterable by domain, searchable by name/entity_id, paginated (50/page), track/untrack toggle. Backed by `/api/entities` (GET list + PATCH tracking).
+26. ✅ Entity detail page — current state + badges, 24h history chart (live from HA), daily stats table, attributes display. Backed by `/api/entities/[id]`.
+27. ✅ Automations list page — all synced automations with enabled/disabled badges, last triggered time. Backed by `/api/automations`.
+28. ✅ Automation detail page — trigger/condition/action JSON breakdown in expandable sections. Backed by `/api/automations/[id]`.
 
-### Phase 4: AI Analysis Engine
+### Phase 4: AI Analysis Engine ✅
 
 *Depends on Phase 2.*
 
-21. Create AI analysis service (`src/lib/ai/analysis-service.ts`)
+29. ✅ Create AI analysis service (`src/lib/ai/analysis-service.ts`)
     - Builds structured prompts from entity data, stats, and automation configs
     - Calls Claude API via `@anthropic-ai/sdk` (server-side only)
     - Parses structured responses (JSON mode or tool_use)
     - Stores results in `ai_analyses` table
-22. Implement analysis types *(depends on 21)*:
+30. ✅ Implement analysis types *(depends on 29)*:
     - **Usage Patterns**: Analyze `entity_daily_stats` to identify patterns (e.g., "lights turn on at 6pm daily", "thermostat runs 8hrs/day")
     - **Anomaly Detection**: Flag unusual activity (e.g., "garage door opened at 3am — unusual for this entity")
     - **Automation Gaps**: Compare observed patterns vs existing automations, suggest new ones (e.g., "you manually turn on porch light every evening — consider an automation")
     - **Efficiency Insights**: Identify energy waste, redundant automations, devices that rarely change state
-23. Build automation suggestion generator *(depends on 22)*:
+31. ✅ Build automation suggestion generator *(depends on 30)*:
     - Generate valid HA automation YAML from AI suggestions
     - Use HA's `validate_config` WebSocket command to validate before presenting (self-hosted uses direct WebSocket; cloud uses REST fallback)
     - Present as copyable YAML + natural language explanation
-24. Set up weekly AI analysis job (`/api/cron/weekly-analysis`) — runs all analysis types on accumulated data. Triggered by Vercel Cron (cloud) or `node-cron` (self-hosted) *(depends on 21, 15)*
+32. ✅ Set up weekly AI analysis job (`/api/cron/weekly-analysis`) — runs all analysis types on accumulated data. Triggered by Vercel Cron (cloud) or `node-cron` (self-hosted) *(depends on 29, 19)*
 
-### Phase 5: Insights UI
+### Phase 5: Insights UI ✅
 
 *Depends on Phase 3 and Phase 4.*
 
-25. Insights page:
+33. ✅ Insights page:
     - Feed-style list of AI insights grouped by type (patterns, anomalies, suggestions)
     - Status management (new / viewed / dismissed / applied)
     - Automation suggestion cards with expandable YAML preview
     - "Analyze Now" button to trigger on-demand analysis for an instance
-26. Inline insights on entity detail pages — show relevant insights for that entity
+34. ✅ Inline insights on entity detail pages — show relevant insights for that entity
 
-### Phase 6: Polish & Production Readiness
+### Phase 6: Polish & Production Readiness ✅
 
-27. Error handling: global error boundary, toast notifications, HA connection error states
-28. Loading states and skeletons for all async operations
-29. Rate limiting on API routes (simple in-memory or Vercel KV)
-30. Responsive design pass (mobile-friendly sidebar, cards)
-31. README with dual deployment instructions (Vercel + Docker), LICENSE (MIT), contributing guide
-32. Vercel deployment configuration (env vars, cron schedules, region settings)
-33. Docker deployment: `Dockerfile` (multi-stage build), `docker-compose.yml` (app + Postgres), `.env.example` for self-hosted mode
-34. Self-hosted setup wizard: first-run page to create admin account and configure HA connection (when no users exist in DB)
+35. ✅ Error handling: global error boundary, toast notifications, HA connection error states
+36. ✅ Loading states and skeletons for all async operations
+37. ✅ Rate limiting on API routes (simple in-memory or Vercel KV)
+38. ✅ Responsive design pass (mobile-friendly sidebar, cards)
+39. ✅ README with dual deployment instructions (Vercel + Docker), LICENSE (MIT), contributing guide
+40. ✅ Vercel deployment configuration (env vars, cron schedules, region settings)
+41. ✅ Docker deployment: `Dockerfile` (multi-stage build), `docker-compose.yml` (app + Postgres), `.env.example` for self-hosted mode — scaffolding done in Phase 1, needs testing
+42. ✅ Self-hosted setup wizard: first-run page to create admin account and configure HA connection (when no users exist in DB)
 
 ---
 
 ## File Structure
 
+✅ = implemented, ☐ = planned
+
 ```
 src/
 ├── app/
-│   ├── layout.tsx                       — Root layout with auth provider, sidebar
-│   ├── page.tsx                         — Landing page (unauthenticated)
-│   ├── (auth)/
-│   │   └── login/page.tsx               — Login page
+│   ├── layout.tsx                           ✅ Root layout (Geist fonts, metadata, ToastProvider)
+│   ├── page.tsx                             ✅ Landing page (unauthenticated)
+│   ├── globals.css                          ✅ Tailwind + shadcn theme
+│   ├── global-error.tsx                     ✅ Global error boundary
+│   ├── login/
+│   │   └── page.tsx                         ✅ Login page (OAuth + Credentials)
+│   ├── setup/
+│   │   └── page.tsx                         ✅ Self-hosted setup wizard
 │   ├── (dashboard)/
-│   │   ├── layout.tsx                   — Dashboard layout with sidebar
-│   │   ├── page.tsx                     — Dashboard overview
-│   │   ├── entities/page.tsx            — Entity list
-│   │   ├── entities/[id]/page.tsx       — Entity detail
-│   │   ├── automations/page.tsx         — Automations list
-│   │   ├── insights/page.tsx            — AI insights feed
-│   │   └── settings/page.tsx            — HA instance management
+│   │   ├── layout.tsx                       ✅ Dashboard layout with responsive sidebar + auth guard
+│   │   ├── error.tsx                        ✅ Dashboard error boundary
+│   │   ├── dashboard/
+│   │   │   ├── page.tsx                     ✅ Dashboard overview (metrics, charts, activity)
+│   │   │   └── loading.tsx                  ✅ Dashboard loading skeleton
+│   │   ├── entities/
+│   │   │   ├── page.tsx                     ✅ Entity list (search, filter, pagination, track toggle)
+│   │   │   ├── [id]/page.tsx               ✅ Entity detail (history chart, daily stats, inline insights)
+│   │   │   └── loading.tsx                  ✅ Entities loading skeleton
+│   │   ├── automations/
+│   │   │   ├── page.tsx                     ✅ Automations list (enabled/disabled, last triggered)
+│   │   │   ├── [id]/page.tsx               ✅ Automation detail (trigger/condition/action breakdown)
+│   │   │   └── loading.tsx                  ✅ Automations loading skeleton
+│   │   ├── insights/
+│   │   │   ├── page.tsx                     ✅ AI insights feed (grouped, filtered, Analyze Now)
+│   │   │   └── loading.tsx                  ✅ Insights loading skeleton
+│   │   └── settings/
+│   │       ├── page.tsx                     ✅ HA instance management
+│   │       └── loading.tsx                  ✅ Settings loading skeleton
 │   └── api/
-│       ├── auth/[...nextauth]/route.ts
+│       ├── auth/[...nextauth]/route.ts      ✅ NextAuth handler
 │       ├── ha/
-│       │   ├── instances/route.ts       — CRUD for HA instances
-│       │   ├── sync/route.ts            — Trigger manual sync
-│       │   ├── states/route.ts          — Proxy live states from HA
-│       │   ├── history/route.ts         — Proxy history from HA
-│       │   └── logbook/route.ts         — Proxy logbook from HA
+│       │   ├── instances/route.ts            ✅ CRUD for HA instances (GET, POST, PATCH, DELETE)
+│       │   ├── sync/route.ts                ✅ Manual sync trigger
+│       │   ├── states/route.ts              ✅ Proxy live states from HA
+│       │   ├── history/route.ts             ✅ Proxy history from HA
+│       │   └── logbook/route.ts             ✅ Proxy logbook from HA
+│       ├── dashboard/
+│       │   └── stats/route.ts               ✅ Dashboard aggregated metrics
+│       ├── entities/
+│       │   ├── route.ts                     ✅ Entity list + PATCH tracking toggle
+│       │   └── [id]/route.ts                ✅ Single entity + daily stats
+│       ├── automations/
+│       │   ├── route.ts                     ✅ Automations list
+│       │   └── [id]/route.ts                ✅ Single automation detail
 │       ├── analysis/
-│       │   └── route.ts                 — Trigger on-demand AI analysis
+│       │   └── route.ts                     ✅ Trigger on-demand AI analysis (rate limited)
+│       ├── insights/
+│       │   ├── route.ts                     ✅ GET insights feed + PATCH status updates
+│       │   └── entity/[entityId]/route.ts   ✅ Entity-scoped insights
+│       ├── setup/
+│       │   └── route.ts                     ✅ Setup check + admin creation
 │       └── cron/
-│           ├── daily-sync/route.ts      — Vercel Cron: daily data sync
-│           └── weekly-analysis/route.ts — Vercel Cron: weekly AI analysis
+│           ├── daily-sync/route.ts          ✅ Daily data sync (full implementation)
+│           └── weekly-analysis/route.ts     ✅ Weekly AI analysis (full implementation)
 ├── db/
-│   ├── index.ts                         — Drizzle client init (conditional: Neon HTTP or node-postgres)
-│   ├── schema.ts                        — All table definitions
-│   └── migrations/                      — Generated by drizzle-kit
+│   ├── index.ts                             ✅ Drizzle client (conditional Neon HTTP / node-postgres)
+│   ├── schema.ts                            ✅ 4 enums, 10 tables, full relations
+│   └── migrations/                          ☐ Generated by drizzle-kit
 ├── lib/
-│   ├── ha-client.ts                     — HA REST API client
-│   ├── ha-websocket.ts                  — HA WebSocket client (self-hosted real-time sync)
-│   ├── encryption.ts                    — AES-256-GCM token encryption
-│   ├── scheduler.ts                     — Conditional scheduler (no-op on Vercel, node-cron self-hosted)
-│   ├── config.ts                        — Deploy mode detection and feature flags
+│   ├── ha-client.ts                         ✅ HA REST API client (HAClient class, 10 methods)
+│   ├── encryption.ts                        ✅ AES-256-GCM token encryption/decryption
+│   ├── sync-service.ts                      ✅ syncEntities, syncAutomations, computeDailyStats, fullSync
+│   ├── scheduler.ts                         ✅ Conditional scheduler (no-op Vercel / node-cron self-hosted)
+│   ├── config.ts                            ✅ Deploy mode detection + feature flags
+│   ├── rate-limit.ts                        ✅ In-memory sliding window rate limiter
 │   ├── ai/
-│   │   ├── analysis-service.ts          — Core AI analysis orchestrator
-│   │   ├── prompts.ts                   — Prompt templates for each analysis type
-│   │   └── types.ts                     — AI response types
-│   └── utils.ts                         — Shared utilities
+│   │   ├── analysis-service.ts              ✅ Core AI analysis orchestrator
+│   │   ├── automation-yaml.ts               ✅ YAML validation/formatting
+│   │   ├── prompts.ts                       ✅ Prompt templates for each analysis type
+│   │   └── types.ts                         ✅ AI response types
+│   └── utils.ts                             ✅ shadcn cn() utility
 ├── components/
-│   ├── ui/                              — shadcn/ui components
-│   ├── charts/                          — D3.js chart components
-│   │   ├── activity-timeline.tsx
-│   │   ├── entity-history-chart.tsx
-│   │   └── state-distribution.tsx
-│   ├── dashboard/                       — Dashboard-specific components
-│   ├── entities/                        — Entity-specific components
-│   ├── insights/                        — Insight cards, automation preview
-│   └── settings/                        — HA instance management forms
-├── auth.ts                              — NextAuth.js config + exports
-└── middleware.ts                         — Auth middleware (protect dashboard routes)
+│   ├── ui/                                  ✅ shadcn/ui: button, card, input, label, dialog, badge, separator, alert, skeleton
+│   ├── charts/
+│   │   ├── top-entities-chart.tsx            ✅ D3.js horizontal bar chart
+│   │   ├── domain-distribution.tsx           ✅ D3.js donut chart with legend
+│   │   └── entity-history-chart.tsx          ✅ D3.js line (sensors) / state bands (binary)
+│   ├── settings/
+│   │   └── ha-instances.tsx                 ✅ HA instance management (add/edit/remove/sync)
+│   ├── insights/
+│   │   └── insight-card.tsx                 ✅ Insight cards with YAML preview, status actions
+│   ├── dashboard/
+│   │   └── nav.tsx                          ✅ Responsive sidebar + mobile nav
+│   ├── error-boundary.tsx                   ✅ Client error boundary component
+│   └── toast.tsx                            ✅ Toast notification provider + context
+├── auth.ts                                  ✅ NextAuth.js v5 config (OAuth + Credentials)
+└── middleware.ts                             ✅ Auth middleware (protect dashboard routes)
 
-drizzle.config.ts                        — Drizzle Kit configuration
-next.config.ts                           — Next.js configuration
-server.ts                                — Custom server entry (self-hosted: starts scheduler + WebSocket manager)
-Dockerfile                               — Multi-stage build for self-hosted deployment
-docker-compose.yml                       — App + Postgres for self-hosted deployment
-.env.example                             — Environment variable template (annotated for both modes)
+drizzle.config.ts                            ✅ Drizzle Kit configuration
+next.config.ts                               ✅ Next.js config (standalone output)
+server.ts                                    ✅ Custom server entry (self-hosted: scheduler + cron jobs)
+Dockerfile                                   ✅ Multi-stage Node 20 Alpine build
+docker-compose.yml                           ✅ App + Postgres 16 Alpine
+vercel.json                                  ✅ Cron config (daily 3AM, weekly Sunday 4AM)
+.env.example                                 ✅ Annotated for both deployment modes
+README.md                                    ✅ Dual deployment instructions
+LICENSE                                      ✅ MIT License
 ```
 
 ---
