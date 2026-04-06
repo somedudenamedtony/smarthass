@@ -1,5 +1,7 @@
 import { decrypt } from "@/lib/encryption";
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 export interface HAState {
   entity_id: string;
   state: string;
@@ -57,11 +59,13 @@ export class HAClientError extends Error {
 export class HAClient {
   private baseUrl: string;
   private token: string;
+  private timeoutMs: number;
 
-  constructor(baseUrl: string, encryptedToken: string) {
+  constructor(baseUrl: string, encryptedToken: string, timeoutMs: number = DEFAULT_TIMEOUT_MS) {
     // Strip trailing slash
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.token = decrypt(encryptedToken);
+    this.timeoutMs = timeoutMs;
   }
 
   private async request<T>(
@@ -69,23 +73,38 @@ export class HAClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    if (!response.ok) {
-      throw new HAClientError(
-        `HA API error: ${response.status} ${response.statusText}`,
-        response.status
-      );
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+          ...options.headers,
+        },
+      });
+
+      if (!response.ok) {
+        throw new HAClientError(
+          `HA API error: ${response.status} ${response.statusText}`,
+          response.status
+        );
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new HAClientError(
+          `HA API request timed out after ${this.timeoutMs}ms: ${path}`
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return response.json() as Promise<T>;
   }
 
   /** Check if the HA instance is reachable and the token is valid. */
@@ -167,18 +186,31 @@ export class HAClient {
   /** Get the error log. */
   async getErrorLog(): Promise<string> {
     const url = `${this.baseUrl}/api/error_log`;
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-      },
-    });
-    if (!response.ok) {
-      throw new HAClientError(
-        `HA API error: ${response.status} ${response.statusText}`,
-        response.status
-      );
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new HAClientError(
+          `HA API error: ${response.status} ${response.statusText}`,
+          response.status
+        );
+      }
+      return response.text();
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new HAClientError(`HA API request timed out after ${this.timeoutMs}ms: /api/error_log`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    return response.text();
   }
 
   /** Call a service on HA. */
@@ -233,17 +265,30 @@ export class HAClient {
    */
   async deleteAutomation(automationId: string): Promise<void> {
     const url = `${this.baseUrl}/api/config/automation/config/${encodeURIComponent(automationId)}`;
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-      },
-    });
-    if (!response.ok) {
-      throw new HAClientError(
-        `HA API error: ${response.status} ${response.statusText}`,
-        response.status
-      );
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: "DELETE",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new HAClientError(
+          `HA API error: ${response.status} ${response.statusText}`,
+          response.status
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new HAClientError(`HA API request timed out after ${this.timeoutMs}ms: deleteAutomation`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -273,20 +318,33 @@ export class HAClient {
   /** Render a Jinja2 template on HA. */
   async renderTemplate(template: string): Promise<string> {
     const url = `${this.baseUrl}/api/template`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ template }),
-    });
-    if (!response.ok) {
-      throw new HAClientError(
-        `HA API error: ${response.status} ${response.statusText}`,
-        response.status
-      );
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ template }),
+      });
+      if (!response.ok) {
+        throw new HAClientError(
+          `HA API error: ${response.status} ${response.statusText}`,
+          response.status
+        );
+      }
+      return response.text();
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new HAClientError(`HA API request timed out after ${this.timeoutMs}ms: /api/template`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    return response.text();
   }
 }

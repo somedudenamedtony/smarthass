@@ -3,6 +3,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { insightPatchSchema, formatZodError } from "@/lib/validators";
 
 /**
  * GET /api/insights — fetch AI insights for an instance
@@ -114,21 +115,17 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { id, ids, status } = body;
-
-  const validStatuses = ["new", "viewed", "dismissed", "applied"] as const;
-  if (!validStatuses.includes(status)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-  }
-
-  const insightIds: string[] = ids ?? (id ? [id] : []);
-  if (insightIds.length === 0) {
+  const raw = await request.json();
+  const parsed = insightPatchSchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "id or ids required" },
+      { error: formatZodError(parsed.error) },
       { status: 400 }
     );
   }
+  const { id, ids, status } = parsed.data;
+
+  const insightIds: string[] = ids ?? (id ? [id] : []);
 
   // Verify ownership: insights belong to a user-owned instance
   const insights = await db

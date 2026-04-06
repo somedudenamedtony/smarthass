@@ -23,6 +23,7 @@ import {
   estimateTokens,
   filterInputByRelevance,
 } from "./prompts";
+import { createHash } from "crypto";
 
 // ── Client ──────────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ async function gatherAnalysisInput(
     .where(eq(schema.haInstances.id, instanceId))
     .limit(1);
 
-  const windowDays = instance?.analysisWindowDays ?? 14;
+  const windowDays = instance?.analysisWindowDays ?? 7;
 
   // Entities
   const entitiesRaw = await db
@@ -189,6 +190,33 @@ async function gatherAnalysisInput(
   };
 }
 
+// ── Delta Detection ─────────────────────────────────────────────────────────
+
+function computeAnalysisHash(input: AnalysisInput): string {
+  const data = input.dailyStats
+    .map((s) => `${s.entityId}:${s.date}:${s.stateChanges}:${s.activeTime}`)
+    .sort()
+    .join("|");
+  return createHash("sha256").update(data).digest("hex").slice(0, 16);
+}
+
+async function hasDataChanged(instanceId: string, newHash: string): Promise<boolean> {
+  const [instance] = await db
+    .select({ lastAnalysisHash: schema.haInstances.lastAnalysisHash })
+    .from(schema.haInstances)
+    .where(eq(schema.haInstances.id, instanceId))
+    .limit(1);
+
+  return instance?.lastAnalysisHash !== newHash;
+}
+
+async function updateAnalysisHash(instanceId: string, hash: string): Promise<void> {
+  await db
+    .update(schema.haInstances)
+    .set({ lastAnalysisHash: hash })
+    .where(eq(schema.haInstances.id, instanceId));
+}
+
 // ── Claude Call ──────────────────────────────────────────────────────────────
 
 const MAX_INPUT_TOKENS = 30_000;
@@ -258,6 +286,105 @@ async function callClaude(
     console.error("[ai] Failed to parse Claude response as JSON:", text.slice(0, 200));
     return { results: [], tokensUsed };
   }
+}
+
+// ── Batch API (50% discount, for cron/background use) ───────────────────────
+
+interface BatchRequest {
+  customId: string;
+  system: string;
+  user: string;
+  model: string;
+}
+
+async function submitBatch(requests: BatchRequest[]): Promise<string> {
+  const client = getClient();
+
+  const batch = await client.messages.batches.create({
+    requests: requests.map((r) => ({
+      custom_id: r.customId,
+      params: {
+        model: r.model,
+        max_tokens: 4096,
+        system: [
+          {
+            type: "text" as const,
+            text: r.system,
+            cache_control: { type: "ephemeral" as const },
+          },
+        ],
+        messages: [{ role: "user" as const, content: r.user }],
+      },
+    })),
+  });
+
+  console.log(`[ai] Batch submitted: ${batch.id} (${requests.length} requests)`);
+  return batch.id;
+}
+
+async function pollBatchResults(
+  batchId: string,
+  maxWaitMs: number = 3600_000
+): Promise<Map<string, ClaudeResponse>> {
+  const client = getClient();
+  const startTime = Date.now();
+  const pollInterval = 30_000;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const batch = await client.messages.batches.retrieve(batchId);
+
+    if (batch.processing_status === "ended") {
+      console.log(
+        `[ai] Batch ${batchId} ended: ${batch.request_counts.succeeded} succeeded, ` +
+        `${batch.request_counts.errored} errored, ${batch.request_counts.expired} expired`
+      );
+
+      const resultsMap = new Map<string, ClaudeResponse>();
+      const decoder = await client.messages.batches.results(batchId);
+
+      for await (const item of decoder) {
+        if (item.result.type === "succeeded") {
+          const msg = item.result.message;
+          const text = msg.content
+            .filter((block): block is Anthropic.TextBlock => block.type === "text")
+            .map((block) => block.text)
+            .join("");
+
+          const tokensUsed = (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0);
+
+          try {
+            const parsed = JSON.parse(text);
+            if (Array.isArray(parsed)) {
+              resultsMap.set(item.custom_id, { results: parsed as AnalysisResult[], tokensUsed });
+            } else {
+              resultsMap.set(item.custom_id, { results: [], tokensUsed });
+            }
+          } catch {
+            console.error(`[ai] Failed to parse batch result ${item.custom_id}:`, text.slice(0, 200));
+            resultsMap.set(item.custom_id, { results: [], tokensUsed });
+          }
+        } else {
+          console.error(`[ai] Batch request ${item.custom_id} failed: ${item.result.type}`);
+          resultsMap.set(item.custom_id, { results: [], tokensUsed: 0 });
+        }
+      }
+
+      return resultsMap;
+    }
+
+    console.log(`[ai] Batch ${batchId} still processing (${batch.request_counts.processing} remaining)...`);
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  // Timeout: attempt to cancel the batch so we don't accumulate costs
+  console.error(`[ai] Batch ${batchId} timed out after ${maxWaitMs}ms — attempting to cancel`);
+  try {
+    await client.messages.batches.cancel(batchId);
+    console.log(`[ai] Batch ${batchId} cancel requested`);
+  } catch (cancelErr) {
+    console.error(`[ai] Failed to cancel batch ${batchId}:`, cancelErr);
+  }
+  return new Map();
 }
 
 // ── Deduplication ───────────────────────────────────────────────────────────
@@ -365,9 +492,9 @@ export async function runAnalysis(
   const builder = ANALYSIS_RUNNERS[category];
   const { system, user } = builder(input);
 
-  // Use Haiku for anomaly detection (lightweight), Sonnet for the rest
+  // Use Haiku for anomaly detection + device suggestions (lightweight), Sonnet for the rest
   const model =
-    category === "anomaly_detection"
+    category === "anomaly_detection" || category === "device_suggestions"
       ? "claude-haiku-4-20250414"
       : "claude-sonnet-4-20250514";
 
@@ -519,11 +646,13 @@ export async function runAllAnalyses(
     return counts;
   }
 
-  // ── Call 1: Usage Patterns + Efficiency (merged, Sonnet) ──────────────
+  // ── Call 1: Usage Patterns + Efficiency (merged, Haiku) ───────────────
   if (hasDailyStats) {
     try {
       const { system, user } = buildUsageAndEfficiencyPrompt(input);
-      const { results: r, tokensUsed } = await callClaude(system, user);
+      const { results: r, tokensUsed } = await callClaude(
+        system, user, "claude-haiku-4-20250414"
+      );
       const counts = await storeResults(r, ["usage_pattern", "efficiency"]);
       results.usage_patterns = counts.usage_pattern ?? 0;
       results.efficiency = counts.efficiency ?? 0;
@@ -577,10 +706,12 @@ export async function runAllAnalyses(
     results.cross_device_correlation = 0;
   }
 
-  // ── Call 4: Device Suggestions (standalone, Sonnet) ───────────────────
+  // ── Call 4: Device Suggestions (standalone, Haiku) ────────────────────
   try {
     const { system, user } = buildDeviceSuggestionPrompt(input);
-    const { results: r, tokensUsed } = await callClaude(system, user);
+    const { results: r, tokensUsed } = await callClaude(
+      system, user, "claude-haiku-4-20250414"
+    );
     const counts = await storeResults(r, ["device_suggestion"]);
     results.device_suggestions = counts.device_suggestion ?? 0;
     totalTokens += tokensUsed;
@@ -597,6 +728,10 @@ export async function runAllAnalyses(
     `[ai] All analyses complete for ${instanceId}: ${totalTokens} total tokens used`
   );
 
+  // Update hash for delta detection
+  const hash = computeAnalysisHash(input);
+  await updateAnalysisHash(instanceId, hash);
+
   // Update analysis run record
   await db
     .update(schema.analysisRuns)
@@ -609,4 +744,216 @@ export async function runAllAnalyses(
     .where(eq(schema.analysisRuns.id, run.id));
 
   return results;
+}
+
+/**
+ * Run all analyses using the Batch API (50% cost discount).
+ * Used for cron/background jobs where real-time response is not needed.
+ * Includes delta-based skipping: if data hasn't changed, skip entirely.
+ */
+export async function runAllAnalysesBatch(
+  instanceId: string
+): Promise<{ batchId: string | null; skipped: boolean; results?: Record<string, number> }> {
+  const rawInput = await gatherAnalysisInput(instanceId);
+  const input = filterInputByRelevance(rawInput, 50);
+
+  // Delta check: skip if data hasn't changed
+  const hash = computeAnalysisHash(input);
+  const changed = await hasDataChanged(instanceId, hash);
+  if (!changed) {
+    console.log(`[ai] Skipping batch analysis for ${instanceId}: data unchanged (hash=${hash})`);
+    return { batchId: null, skipped: true };
+  }
+
+  const hasEntities = input.entities.length > 0;
+  const hasDailyStats = input.dailyStats.length > 0;
+
+  if (!hasEntities) {
+    console.log(`[ai] Skipping batch analysis for ${instanceId}: no entities`);
+    return { batchId: null, skipped: true };
+  }
+
+  // Create analysis run record
+  const [run] = await db
+    .insert(schema.analysisRuns)
+    .values({
+      instanceId,
+      status: "running",
+      startedAt: new Date(),
+    })
+    .returning();
+
+  // Build all prompts
+  const batchRequests: BatchRequest[] = [];
+
+  if (hasDailyStats) {
+    const ue = buildUsageAndEfficiencyPrompt(input);
+    batchRequests.push({
+      customId: `${run.id}:usage_efficiency`,
+      system: ue.system,
+      user: ue.user,
+      model: "claude-haiku-4-20250414",
+    });
+
+    const ad = buildAnomalyDetectionPrompt(input);
+    batchRequests.push({
+      customId: `${run.id}:anomaly_detection`,
+      system: ad.system,
+      user: ad.user,
+      model: "claude-haiku-4-20250414",
+    });
+  }
+
+  const ac = buildAutomationAndCorrelationPrompt(input);
+  batchRequests.push({
+    customId: `${run.id}:automation_correlation`,
+    system: ac.system,
+    user: ac.user,
+    model: "claude-sonnet-4-20250514",
+  });
+
+  const ds = buildDeviceSuggestionPrompt(input);
+  batchRequests.push({
+    customId: `${run.id}:device_suggestions`,
+    system: ds.system,
+    user: ds.user,
+    model: "claude-haiku-4-20250414",
+  });
+
+  // Apply token budget to each request
+  for (const req of batchRequests) {
+    const estimated = estimateTokens(req.system + req.user);
+    if (estimated > MAX_INPUT_TOKENS) {
+      const maxUserChars = (MAX_INPUT_TOKENS - estimateTokens(req.system)) * 4;
+      req.user = req.user.slice(0, maxUserChars) + "\n\n[Data truncated to fit token budget]";
+      console.log(`[ai] Truncated batch request ${req.customId} to fit budget`);
+    }
+  }
+
+  // Submit batch
+  const batchId = await submitBatch(batchRequests);
+
+  // Poll for results (up to 1 hour for cron context)
+  const batchResults = await pollBatchResults(batchId);
+
+  // If polling timed out, batchResults will be empty — mark run as failed
+  if (batchResults.size === 0) {
+    console.error(`[ai] Batch ${batchId} returned no results (likely timed out)`);
+    await db
+      .update(schema.analysisRuns)
+      .set({
+        status: "failed",
+        completedAt: new Date(),
+        error: `Batch ${batchId} timed out after polling — no results received`,
+        tokensUsed: 0,
+      })
+      .where(eq(schema.analysisRuns.id, run.id));
+    return { batchId, skipped: false, results: {} };
+  }
+
+  // Process results
+  const results: Record<string, number> = {};
+  let totalTokens = 0;
+
+  // Dedup helper
+  async function storeBatchResults(
+    analysisResults: AnalysisResult[],
+    categoryFilters: string[]
+  ): Promise<Record<string, number>> {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentInsights = await db
+      .select({ title: schema.aiAnalyses.title, metadata: schema.aiAnalyses.metadata })
+      .from(schema.aiAnalyses)
+      .where(
+        and(
+          eq(schema.aiAnalyses.instanceId, instanceId),
+          gte(schema.aiAnalyses.createdAt, thirtyDaysAgo),
+          sql`${schema.aiAnalyses.metadata}->>'category' IN (${sql.join(
+            categoryFilters.map((c) => sql`${c}`),
+            sql`, `
+          )})`
+        )
+      );
+
+    const counts: Record<string, number> = {};
+    for (const cat of categoryFilters) counts[cat] = 0;
+
+    for (const result of analysisResults) {
+      const duplicateOf = isDuplicate(result, recentInsights);
+      if (duplicateOf) {
+        console.log(`[ai] Skipping duplicate: "${result.title}" (similar to "${duplicateOf}")`);
+        continue;
+      }
+
+      await db.insert(schema.aiAnalyses).values({
+        instanceId,
+        analysisRunId: run.id,
+        type: result.type,
+        title: result.title,
+        content: result.content,
+        metadata: result.metadata,
+        status: "new",
+      });
+
+      recentInsights.push({ title: result.title, metadata: result.metadata });
+      const cat = (result.metadata as { category?: string })?.category;
+      if (cat && cat in counts) counts[cat]++;
+    }
+
+    return counts;
+  }
+
+  // Process usage+efficiency
+  const ueResult = batchResults.get(`${run.id}:usage_efficiency`);
+  if (ueResult) {
+    const counts = await storeBatchResults(ueResult.results, ["usage_pattern", "efficiency"]);
+    results.usage_patterns = counts.usage_pattern ?? 0;
+    results.efficiency = counts.efficiency ?? 0;
+    totalTokens += ueResult.tokensUsed;
+  }
+
+  // Process anomaly detection
+  const adResult = batchResults.get(`${run.id}:anomaly_detection`);
+  if (adResult) {
+    const counts = await storeBatchResults(adResult.results, ["anomaly_detection"]);
+    results.anomaly_detection = counts.anomaly_detection ?? 0;
+    totalTokens += adResult.tokensUsed;
+  }
+
+  // Process automation+correlation
+  const acResult = batchResults.get(`${run.id}:automation_correlation`);
+  if (acResult) {
+    const counts = await storeBatchResults(acResult.results, ["automation_gap", "cross_device_correlation"]);
+    results.automation_gaps = counts.automation_gap ?? 0;
+    results.cross_device_correlation = counts.cross_device_correlation ?? 0;
+    totalTokens += acResult.tokensUsed;
+  }
+
+  // Process device suggestions
+  const dsResult = batchResults.get(`${run.id}:device_suggestions`);
+  if (dsResult) {
+    const counts = await storeBatchResults(dsResult.results, ["device_suggestion"]);
+    results.device_suggestions = counts.device_suggestion ?? 0;
+    totalTokens += dsResult.tokensUsed;
+  }
+
+  // Update hash and run record
+  await updateAnalysisHash(instanceId, hash);
+  await db
+    .update(schema.analysisRuns)
+    .set({
+      status: "completed",
+      completedAt: new Date(),
+      insightsGenerated: results,
+      tokensUsed: totalTokens,
+    })
+    .where(eq(schema.analysisRuns.id, run.id));
+
+  console.log(
+    `[ai] Batch analysis complete for ${instanceId}: ${totalTokens} total tokens (50% batch discount applied)`
+  );
+
+  return { batchId, skipped: false, results };
 }

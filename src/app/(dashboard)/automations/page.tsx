@@ -10,7 +10,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, CheckCircle, XCircle, Plus } from "lucide-react";
+import { Zap, Clock, CheckCircle, XCircle, Plus, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface Automation {
   id: string;
@@ -32,6 +34,7 @@ export default function AutomationsPage() {
   const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/ha/instances")
@@ -46,11 +49,18 @@ export default function AutomationsPage() {
   const loadAutomations = useCallback(async () => {
     if (!selectedInstance) return;
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(
         `/api/automations?instanceId=${selectedInstance}`
       );
-      if (res.ok) setAutomations(await res.json());
+      if (res.ok) {
+        setAutomations(await res.json());
+      } else {
+        setError("Failed to load automations.");
+      }
+    } catch {
+      setError("Network error. Please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -103,6 +113,14 @@ export default function AutomationsPage() {
             <div key={i} className="h-24 bg-muted rounded-lg animate-pulse" />
           ))}
         </div>
+      ) : error ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={loadAutomations}>Retry</Button>
+          </AlertDescription>
+        </Alert>
       ) : automations.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center text-muted-foreground">

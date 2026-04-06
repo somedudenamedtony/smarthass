@@ -12,7 +12,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Cpu, Search, Eye, EyeOff } from "lucide-react";
+import { Cpu, Search, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { useToast } from "@/components/toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Entity {
   id: string;
@@ -48,6 +50,8 @@ export default function EntitiesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [domain, setDomain] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -63,6 +67,7 @@ export default function EntitiesPage() {
   const loadEntities = useCallback(async () => {
     if (!selectedInstance) return;
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({
         instanceId: selectedInstance,
@@ -72,7 +77,13 @@ export default function EntitiesPage() {
       if (search) params.set("search", search);
 
       const res = await fetch(`/api/entities?${params}`);
-      if (res.ok) setData(await res.json());
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        setError("Failed to load entities. Please try again.");
+      }
+    } catch {
+      setError("Network error. Please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -83,12 +94,21 @@ export default function EntitiesPage() {
   }, [loadEntities]);
 
   async function toggleTracked(entityId: string, current: boolean) {
-    await fetch("/api/entities", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: entityId, isTracked: !current }),
-    });
-    loadEntities();
+    try {
+      const res = await fetch("/api/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: entityId, isTracked: !current }),
+      });
+      if (res.ok) {
+        toast("success", current ? "Entity untracked" : "Entity is now tracked");
+        loadEntities();
+      } else {
+        toast("error", "Failed to update tracking status");
+      }
+    } catch {
+      toast("error", "Network error. Please try again.");
+    }
   }
 
   if (instances.length === 0 && !loading) {
@@ -155,10 +175,20 @@ export default function EntitiesPage() {
 
       {loading ? (
         <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-muted rounded-lg animate-pulse" />)}</div>
+      ) : error ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={loadEntities}>Retry</Button>
+          </AlertDescription>
+        </Alert>
       ) : !data || data.entities.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center text-muted-foreground">
-            No entities found. Try syncing your instance first.
+            {search || domain
+              ? "No entities match your search. Try adjusting your filters."
+              : "No entities found. Try syncing your instance first."}
           </CardContent>
         </Card>
       ) : (

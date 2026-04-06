@@ -4,7 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { HAClient } from "@/lib/ha-client";
-import { syncEntities, syncAutomations, computeDailyStats, computeBaselines } from "@/lib/sync-service";
+import { syncEntities, syncAutomations, computeDailyStats, computeBaselines, withRetry } from "@/lib/sync-service";
 
 export async function POST(request: NextRequest) {
   // Verify cron secret in cloud mode
@@ -46,12 +46,21 @@ export async function POST(request: NextRequest) {
 
         const client = new HAClient(instance.url, instance.encryptedToken);
 
-        // Sync entities and automations
-        const entityCount = await syncEntities(instance.id, client);
-        const automationCount = await syncAutomations(instance.id, client);
+        // Sync entities and automations (with retry on transient failures)
+        const entityCount = await withRetry(
+          () => syncEntities(instance.id, client),
+          `syncEntities(${instance.name})`
+        );
+        const automationCount = await withRetry(
+          () => syncAutomations(instance.id, client),
+          `syncAutomations(${instance.name})`
+        );
 
         // Compute daily stats for tracked entities
-        const statsCount = await computeDailyStats(instance.id, client);
+        const statsCount = await withRetry(
+          () => computeDailyStats(instance.id, client),
+          `computeDailyStats(${instance.name})`
+        );
 
         // Compute baselines from historical stats
         const baselineCount = await computeBaselines(instance.id);

@@ -4,6 +4,7 @@ import * as schema from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { runAllAnalyses, runAnalysis } from "@/lib/ai/analysis-service";
 import { rateLimit } from "@/lib/rate-limit";
+import { analysisBodySchema, formatZodError } from "@/lib/validators";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Rate limit: 5 analysis runs per user per 10 minutes
-  const { allowed, remaining } = rateLimit(
+  const { allowed, remaining } = await rateLimit(
     `analysis:${session.user.id}`,
     5,
     600_000
@@ -33,14 +34,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { instanceId, category } = await request.json();
-
-  if (!instanceId) {
+  const raw = await request.json();
+  const parsed = analysisBodySchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "instanceId is required" },
+      { error: formatZodError(parsed.error) },
       { status: 400 }
     );
   }
+  const { instanceId, category } = parsed.data;
 
   // Verify ownership
   const instance = await db
@@ -68,25 +70,8 @@ export async function POST(request: NextRequest) {
   try {
     let results: Record<string, number>;
 
-    const validCategories = [
-      "usage_patterns",
-      "anomaly_detection",
-      "automation_gaps",
-      "efficiency",
-      "cross_device_correlation",
-      "device_suggestions",
-    ] as const;
-
-    if (
-      category &&
-      validCategories.includes(
-        category as (typeof validCategories)[number]
-      )
-    ) {
-      const { count } = await runAnalysis(
-        instanceId,
-        category as (typeof validCategories)[number]
-      );
+    if (category) {
+      const { count } = await runAnalysis(instanceId, category);
       results = { [category]: count };
     } else {
       results = await runAllAnalyses(instanceId);

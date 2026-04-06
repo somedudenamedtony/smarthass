@@ -3,6 +3,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { eq, and, like, sql, count } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { entityPatchSchema, formatZodError } from "@/lib/validators";
 
 /**
  * GET /api/entities?instanceId=...&domain=...&search=...&page=1&limit=50
@@ -112,13 +113,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id, isTracked } = await request.json();
-  if (!id || typeof isTracked !== "boolean") {
+  const raw = await request.json();
+  const parsed = entityPatchSchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "id and isTracked are required" },
+      { error: formatZodError(parsed.error) },
       { status: 400 }
     );
   }
+  const { id, isTracked } = parsed.data;
 
   // Verify ownership via instance
   const entity = await db

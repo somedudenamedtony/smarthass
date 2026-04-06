@@ -3,6 +3,7 @@ import * as schema from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { setupBodySchema, formatZodError } from "@/lib/validators";
 
 /**
  * GET /api/setup — check if setup is needed (no users exist)
@@ -34,21 +35,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { name, email, password } = await request.json();
-
-  if (!email || !password) {
+  const raw = await request.json();
+  const parsed = setupBodySchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Email and password are required" },
+      { error: formatZodError(parsed.error) },
       { status: 400 }
     );
   }
-
-  if (typeof password !== "string" || password.length < 8) {
-    return NextResponse.json(
-      { error: "Password must be at least 8 characters" },
-      { status: 400 }
-    );
-  }
+  const { name, email, password } = parsed.data;
 
   const passwordHash = await bcrypt.hash(password, 12);
 

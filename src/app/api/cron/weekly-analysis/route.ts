@@ -3,7 +3,7 @@ import { isCloud } from "@/lib/config";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { runAllAnalyses } from "@/lib/ai/analysis-service";
+import { runAllAnalysesBatch } from "@/lib/ai/analysis-service";
 
 export async function POST(request: NextRequest) {
   // Verify cron secret in cloud mode
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    console.log("[weekly-analysis] Starting weekly analysis...");
+    console.log("[weekly-analysis] Starting weekly analysis (batch mode)...");
 
     const instances = await db
       .select({ id: schema.haInstances.id, name: schema.haInstances.name })
@@ -40,16 +40,28 @@ export async function POST(request: NextRequest) {
 
     for (const instance of instances) {
       try {
-        const counts = await runAllAnalyses(instance.id);
-        const total = Object.values(counts).reduce((a, b) => a + b, 0);
+        const { batchId, skipped, results: counts } = await runAllAnalysesBatch(instance.id);
+
+        if (skipped) {
+          console.log(`[weekly-analysis] ${instance.name}: skipped (data unchanged)`);
+          results.push({
+            instanceId: instance.id,
+            name: instance.name,
+            skipped: true,
+          });
+          continue;
+        }
+
+        const total = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
         results.push({
           instanceId: instance.id,
           name: instance.name,
           insights: total,
           breakdown: counts,
+          batchId,
         });
         console.log(
-          `[weekly-analysis] ${instance.name}: ${total} insights generated`
+          `[weekly-analysis] ${instance.name}: ${total} insights generated via batch ${batchId}`
         );
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";

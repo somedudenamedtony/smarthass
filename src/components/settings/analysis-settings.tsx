@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/toast";
 
 interface HAInstance {
   id: string;
@@ -27,6 +28,7 @@ export function AnalysisSettings() {
   const [instances, setInstances] = useState<HAInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const fetchInstances = useCallback(async () => {
     try {
@@ -57,7 +59,12 @@ export function AnalysisSettings() {
             i.id === instanceId ? { ...i, analysisWindowDays: days } : i
           )
         );
+        toast("success", `Analysis window set to ${days} days`);
+      } else {
+        toast("error", "Failed to update analysis window");
       }
+    } catch {
+      toast("error", "Network error. Please try again.");
     } finally {
       setSaving(null);
     }
@@ -97,7 +104,7 @@ export function AnalysisSettings() {
                     <Button
                       key={opt.value}
                       variant={
-                        (instance.analysisWindowDays ?? 14) === opt.value
+                        (instance.analysisWindowDays ?? 7) === opt.value
                           ? "default"
                           : "outline"
                       }

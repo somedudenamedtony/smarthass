@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/components/toast";
 
 interface HAInstance {
   id: string;
@@ -40,6 +41,7 @@ export function HAInstances() {
   const [editingInstance, setEditingInstance] = useState<HAInstance | null>(
     null
   );
+  const { toast } = useToast();
 
   const fetchInstances = useCallback(async () => {
     try {
@@ -73,24 +75,38 @@ export function HAInstances() {
 
   async function handleDelete(id: string) {
     if (!confirm("Remove this Home Assistant connection?")) return;
-    const res = await fetch("/api/ha/instances", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    if (res.ok) {
-      setInstances((prev) => prev.filter((i) => i.id !== id));
+    try {
+      const res = await fetch("/api/ha/instances", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setInstances((prev) => prev.filter((i) => i.id !== id));
+        toast("success", "Instance removed");
+      } else {
+        toast("error", "Failed to remove instance");
+      }
+    } catch {
+      toast("error", "Network error. Please try again.");
     }
   }
 
   async function handleSync(id: string) {
-    const res = await fetch("/api/ha/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instanceId: id }),
-    });
-    if (res.ok) {
-      fetchInstances();
+    try {
+      const res = await fetch("/api/ha/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instanceId: id }),
+      });
+      if (res.ok) {
+        toast("success", "Sync completed successfully");
+        fetchInstances();
+      } else {
+        toast("error", "Sync failed. Check your HA connection.");
+      }
+    } catch {
+      toast("error", "Network error. Please try again.");
     }
   }
 
@@ -120,6 +136,7 @@ export function HAInstances() {
             onSaved={() => {
               handleDialogClose();
               fetchInstances();
+              toast("success", editingInstance ? "Instance updated" : "Instance added");
             }}
           />
         </Dialog>

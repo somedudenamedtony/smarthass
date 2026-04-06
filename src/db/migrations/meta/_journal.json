@@ -15,6 +15,13 @@
       "when": 1775492400000,
       "tag": "0001_add_analysis_types",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775592400000,
+      "tag": "0002_cost_optimizations",
+      "breakpoints": true
     }
   ]
 }

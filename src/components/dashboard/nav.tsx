@@ -9,17 +9,21 @@ import {
   Cpu,
   Zap,
   Brain,
+  Coins,
   Settings,
   Menu,
   X,
   Activity,
+  Share2,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/entities", label: "Entities", icon: Cpu },
+  { href: "/entities/graph", label: "Entity Graph", icon: Share2 },
   { href: "/automations", label: "Automations", icon: Zap },
   { href: "/insights", label: "Insights", icon: Brain },
+  { href: "/ai-usage", label: "AI Usage", icon: Coins },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

@@ -62,6 +62,7 @@ export const users = pgTable("users", {
   emailVerified: timestamp("email_verified", { mode: "date" }),
   image: text("image"),
   passwordHash: text("password_hash"), // Used for self-hosted credentials auth
+  dashboardPreferences: jsonb("dashboard_preferences"), // Widget order, visibility, pinned entities
 });
 
 export const accounts = pgTable(
@@ -123,7 +124,8 @@ export const haInstances = pgTable("ha_instances", {
   lastSyncAt: timestamp("last_sync_at", { mode: "date" }),
   status: instanceStatusEnum("status").default("pending").notNull(),
   haVersion: text("ha_version"),
-  analysisWindowDays: integer("analysis_window_days").default(14).notNull(),
+  analysisWindowDays: integer("analysis_window_days").default(7).notNull(),
+  lastAnalysisHash: text("last_analysis_hash"),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 

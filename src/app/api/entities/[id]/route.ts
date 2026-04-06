@@ -1,14 +1,15 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * GET /api/entities/[id] — single entity with daily stats
+ * GET /api/entities/[id]?days=30 — single entity with daily stats
+ * Returns current-period and previous-period stats for comparison.
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -17,6 +18,8 @@ export async function GET(
   }
 
   const { id } = await params;
+  const { searchParams } = new URL(request.url);
+  const days = Math.min(90, Math.max(1, parseInt(searchParams.get("days") ?? "30", 10)));
 
   const entity = await db
     .select()
@@ -44,16 +47,48 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  // Get daily stats (last 30 days)
-  const dailyStats = await db
+  // Fetch 2x the requested window so we can compare current vs previous
+  const totalDays = days * 2;
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - totalDays);
+
+  const allStats = await db
     .select()
     .from(schema.entityDailyStats)
-    .where(eq(schema.entityDailyStats.entityId, id))
-    .orderBy(desc(schema.entityDailyStats.date))
-    .limit(30);
+    .where(
+      and(
+        eq(schema.entityDailyStats.entityId, id),
+        gte(schema.entityDailyStats.date, cutoffDate.toISOString().slice(0, 10))
+      )
+    )
+    .orderBy(desc(schema.entityDailyStats.date));
+
+  const midDate = new Date();
+  midDate.setDate(midDate.getDate() - days);
+  const midStr = midDate.toISOString().slice(0, 10);
+
+  const currentPeriod = allStats.filter((s) => s.date >= midStr);
+  const previousPeriod = allStats.filter((s) => s.date < midStr);
+
+  // Compute aggregate comparison
+  const aggregate = (rows: typeof allStats) => {
+    if (rows.length === 0) return null;
+    const totalChanges = rows.reduce((s, r) => s + r.stateChanges, 0);
+    const totalActive = rows.reduce((s, r) => s + r.activeTime, 0);
+    return {
+      totalStateChanges: totalChanges,
+      totalActiveTime: totalActive,
+      avgDailyChanges: Math.round(totalChanges / rows.length),
+      avgDailyActiveTime: Math.round(totalActive / rows.length),
+      days: rows.length,
+    };
+  };
 
   return NextResponse.json({
     entity: entity[0],
-    dailyStats,
+    dailyStats: currentPeriod,
+    days,
+    currentPeriodStats: aggregate(currentPeriod),
+    previousPeriodStats: aggregate(previousPeriod),
   });
 }

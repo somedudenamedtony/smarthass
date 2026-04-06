@@ -4,6 +4,36 @@ import { eq, and, sql } from "drizzle-orm";
 import { HAClient, HAState } from "@/lib/ha-client";
 
 /**
+ * Retry a function with exponential backoff.
+ * @param fn - The async function to retry
+ * @param maxAttempts - Maximum number of attempts (default: 3)
+ * @param baseDelayMs - Base delay in ms, doubles each retry (default: 1000)
+ */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  maxAttempts: number = 3,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < maxAttempts) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        console.warn(
+          `[sync] ${label} failed (attempt ${attempt}/${maxAttempts}): ${lastError.message}. Retrying in ${delay}ms...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Sync entity registry from HA into the database.
  * Pulls all current states, upserts entity records.
  */

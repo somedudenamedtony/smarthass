@@ -4,6 +4,7 @@ import * as schema from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { HAClient } from "@/lib/ha-client";
+import { deployBodySchema, formatZodError } from "@/lib/validators";
 import {
   formatAutomationYaml,
   validateAgainstHA,
@@ -29,19 +30,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { insightId, instanceId, yamlOverride } = body as {
-    insightId?: string;
-    instanceId?: string;
-    yamlOverride?: string;
-  };
-
-  if (!insightId || !instanceId) {
+  const raw = await request.json();
+  const parsed = deployBodySchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "insightId and instanceId are required" },
+      { error: formatZodError(parsed.error) },
       { status: 400 }
     );
   }
+  const { insightId, instanceId, yamlOverride } = parsed.data;
 
   // Verify instance ownership
   const [instance] = await db
@@ -152,14 +149,14 @@ export async function POST(request: NextRequest) {
   }
 
   // Step 3: Generate unique automation ID
-  const parsed = parse(validation.yaml) as Record<string, unknown>;
-  const alias = (parsed.alias as string) || insight.title;
+  const yamlParsed = parse(validation.yaml) as Record<string, unknown>;
+  const alias = (yamlParsed.alias as string) || insight.title;
   const shortId = crypto.randomUUID().slice(0, 8);
   const automationId = `smarthass_${slugify(alias)}_${shortId}`;
 
   // Step 4: Deploy to HA
   try {
-    await client.createAutomation(automationId, parsed);
+    await client.createAutomation(automationId, yamlParsed);
     await client.reloadAutomations();
   } catch (err) {
     return NextResponse.json(

@@ -13,6 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { InsightCard, type Insight } from "@/components/insights/insight-card";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Brain,
   AlertTriangle,
   Lightbulb,
@@ -20,7 +28,12 @@ import {
   GitBranch,
   Cpu,
   Sparkles,
+  Loader2,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
+import { useToast } from "@/components/toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface HAInstance {
   id: string;
@@ -39,9 +52,18 @@ export default function InsightsPage() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [newCount, setNewCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<{
+    success: boolean;
+    totalInsights?: number;
+    results?: Record<string, number>;
+    error?: string;
+  } | null>(null);
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const { toast } = useToast();
 
   // Load instances
   useEffect(() => {
@@ -63,17 +85,24 @@ export default function InsightsPage() {
   const loadInsights = useCallback(async () => {
     if (!selectedInstance) return;
     setLoading(true);
+    setError(null);
     const params = new URLSearchParams({ instanceId: selectedInstance });
     if (typeFilter !== "all") params.set("type", typeFilter);
     if (statusFilter === "new") params.set("status", "new");
     if (statusFilter === "dismissed") params.set("status", "dismissed");
 
-    const res = await fetch(`/api/insights?${params}`);
-    if (res.ok) {
-      const data = await res.json();
-      setInsights(data.insights);
-      setCounts(data.counts);
-      setNewCount(data.newCount);
+    try {
+      const res = await fetch(`/api/insights?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInsights(data.insights);
+        setCounts(data.counts);
+        setNewCount(data.newCount);
+      } else {
+        setError("Failed to load insights.");
+      }
+    } catch {
+      setError("Network error. Please check your connection.");
     }
     setLoading(false);
   }, [selectedInstance, typeFilter, statusFilter]);
@@ -84,18 +113,25 @@ export default function InsightsPage() {
 
   // Update status
   async function handleStatusChange(id: string, status: Insight["status"]) {
-    const res = await fetch("/api/insights", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
-    });
-    if (res.ok) {
-      setInsights((prev) =>
-        prev.map((i) => (i.id === id ? { ...i, status } : i))
-      );
-      if (status === "viewed" || status === "dismissed") {
-        setNewCount((prev) => Math.max(0, prev - 1));
+    try {
+      const res = await fetch("/api/insights", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      if (res.ok) {
+        setInsights((prev) =>
+          prev.map((i) => (i.id === id ? { ...i, status } : i))
+        );
+        if (status === "viewed" || status === "dismissed") {
+          setNewCount((prev) => Math.max(0, prev - 1));
+        }
+        toast("success", status === "dismissed" ? "Insight dismissed" : "Insight updated");
+      } else {
+        toast("error", "Failed to update insight status");
       }
+    } catch {
+      toast("error", "Network error. Please try again.");
     }
   }
 
@@ -103,19 +139,36 @@ export default function InsightsPage() {
   async function analyzeNow() {
     if (!selectedInstance) return;
     setAnalyzing(true);
+    setAnalysisResult(null);
+    setAnalysisDialogOpen(true);
     try {
       const res = await fetch("/api/analysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instanceId: selectedInstance }),
       });
+      const data = await res.json();
       if (res.ok) {
+        setAnalysisResult({ success: true, totalInsights: data.totalInsights, results: data.results });
         await loadInsights();
+      } else {
+        setAnalysisResult({ success: false, error: data.error || "Analysis failed" });
       }
+    } catch {
+      setAnalysisResult({ success: false, error: "Network error. Please try again." });
     } finally {
       setAnalyzing(false);
     }
   }
+
+  const analysisCategoryLabels: Record<string, string> = {
+    usage_patterns: "Usage Patterns",
+    anomaly_detection: "Anomaly Detection",
+    automation_gaps: "Automation Gaps",
+    efficiency: "Efficiency",
+    cross_device_correlation: "Cross-Device Correlation",
+    device_suggestions: "Device Suggestions",
+  };
 
   // Filter insights by status (active = not dismissed)
   const filteredInsights =
@@ -204,6 +257,76 @@ export default function InsightsPage() {
         </div>
       </div>
 
+      {/* Analysis progress dialog */}
+      <Dialog
+        open={analysisDialogOpen}
+        onOpenChange={(open) => {
+          if (!analyzing) setAnalysisDialogOpen(open);
+        }}
+      >
+        <DialogContent showCloseButton={!analyzing} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {analysisResult === null
+                ? "Running AI Analysis"
+                : analysisResult.success
+                  ? "Analysis Complete"
+                  : "Analysis Failed"}
+            </DialogTitle>
+            <DialogDescription>
+              {analysisResult === null
+                ? "Analyzing your smart home data across multiple categories…"
+                : analysisResult.success
+                  ? `Generated ${analysisResult.totalInsights ?? 0} new insight${(analysisResult.totalInsights ?? 0) === 1 ? "" : "s"}.`
+                  : analysisResult.error}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Processing state */}
+          {analysisResult === null && (
+            <div className="space-y-3 py-2">
+              {Object.entries(analysisCategoryLabels).map(([key, label]) => (
+                <div key={key} className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Success state */}
+          {analysisResult?.success && (
+            <div className="space-y-3 py-2">
+              {Object.entries(analysisResult.results ?? {}).map(([key, count]) => (
+                <div key={key} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{analysisCategoryLabels[key] ?? key}</span>
+                  </div>
+                  <Badge variant="secondary">{count}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Error state */}
+          {analysisResult && !analysisResult.success && (
+            <div className="flex items-start gap-3 rounded-lg bg-destructive/10 p-3 text-sm">
+              <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <span>{analysisResult.error}</span>
+            </div>
+          )}
+
+          {analysisResult !== null && (
+            <DialogFooter>
+              <Button onClick={() => setAnalysisDialogOpen(false)}>
+                {analysisResult.success ? "Done" : "Close"}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Summary cards (clickable filters) */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <SummaryCard label="Total" value={totalInsights} icon={<Brain className="h-4 w-4" />} color="primary" active={typeFilter === "all"} onClick={() => setTypeFilter("all")} />
@@ -227,6 +350,14 @@ export default function InsightsPage() {
       {/* Insights feed */}
       {loading ? (
         <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-muted rounded-xl animate-pulse" />)}</div>
+      ) : error ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={loadInsights}>Retry</Button>
+          </AlertDescription>
+        </Alert>
       ) : filteredInsights.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-16 text-center">

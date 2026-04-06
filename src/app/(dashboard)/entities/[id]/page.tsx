@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { EntityHistoryChart } from "@/components/charts/entity-history-chart";
+import { DailyStatsChart } from "@/components/charts/daily-stats-chart";
 import { InsightCard, type Insight } from "@/components/insights/insight-card";
+import { useToast } from "@/components/toast";
 
 interface EntityDetail {
   id: string;
@@ -43,34 +45,51 @@ interface DailyStat {
   stateDistribution: Record<string, number> | null;
 }
 
+interface PeriodStats {
+  totalStateChanges: number;
+  totalActiveTime: number;
+  avgDailyChanges: number;
+  avgDailyActiveTime: number;
+  days: number;
+}
+
 interface HistoryPoint {
   state: string;
   last_changed: string;
 }
 
+const TIME_RANGES = [7, 14, 30, 90] as const;
+
 export default function EntityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [entity, setEntity] = useState<EntityDetail | null>(null);
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
+  const [previousStats, setPreviousStats] = useState<DailyStat[]>([]);
+  const [currentPeriodStats, setCurrentPeriodStats] = useState<PeriodStats | null>(null);
+  const [previousPeriodStats, setPreviousPeriodStats] = useState<PeriodStats | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [entityInsights, setEntityInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState<number>(30);
+  const { toast } = useToast();
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/entities/${id}`);
+        const res = await fetch(`/api/entities/${id}?days=${days}`);
         if (res.ok) {
           const data = await res.json();
           setEntity(data.entity);
           setDailyStats(data.dailyStats);
+          setCurrentPeriodStats(data.currentPeriodStats);
+          setPreviousPeriodStats(data.previousPeriodStats);
         }
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [id]);
+  }, [id, days]);
 
   const loadHistory = useCallback(async () => {
     if (!entity) return;
@@ -123,12 +142,21 @@ export default function EntityDetailPage() {
 
   async function toggleTracked() {
     if (!entity) return;
-    await fetch("/api/entities", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: entity.id, isTracked: !entity.isTracked }),
-    });
-    setEntity((prev) => (prev ? { ...prev, isTracked: !prev.isTracked } : null));
+    try {
+      const res = await fetch("/api/entities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: entity.id, isTracked: !entity.isTracked }),
+      });
+      if (res.ok) {
+        setEntity((prev) => (prev ? { ...prev, isTracked: !prev.isTracked } : null));
+        toast("success", entity.isTracked ? "Entity untracked" : "Entity is now tracked");
+      } else {
+        toast("error", "Failed to update tracking status");
+      }
+    } catch {
+      toast("error", "Network error. Please try again.");
+    }
   }
 
   if (loading) {
@@ -148,9 +176,12 @@ export default function EntityDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex items-center gap-4">
         <Link href="/entities" className="text-sm text-muted-foreground hover:underline">
           ← Back to entities
+        </Link>
+        <Link href="/entities/graph" className="text-sm text-muted-foreground hover:underline">
+          View entity graph
         </Link>
       </div>
 
@@ -209,15 +240,86 @@ export default function EntityDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Daily stats */}
+      {/* Daily stats with trend comparison */}
       {dailyStats.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Daily Statistics</CardTitle>
-            <CardDescription>
-              Aggregated from tracked history data
-            </CardDescription>
-          </CardHeader>
+        <>
+          {/* Time range selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Period:</span>
+            {TIME_RANGES.map((d) => (
+              <Button
+                key={d}
+                variant={days === d ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDays(d)}
+              >
+                {d}d
+              </Button>
+            ))}
+          </div>
+
+          {/* Delta comparison badges */}
+          {currentPeriodStats && previousPeriodStats && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <DeltaCard
+                label="Daily State Changes"
+                current={currentPeriodStats.avgDailyChanges}
+                previous={previousPeriodStats.avgDailyChanges}
+              />
+              <DeltaCard
+                label="Daily Active Time"
+                current={currentPeriodStats.avgDailyActiveTime}
+                previous={previousPeriodStats.avgDailyActiveTime}
+                format={formatDuration}
+              />
+              <DeltaCard
+                label="Total State Changes"
+                current={currentPeriodStats.totalStateChanges}
+                previous={previousPeriodStats.totalStateChanges}
+              />
+              <DeltaCard
+                label="Total Active Time"
+                current={currentPeriodStats.totalActiveTime}
+                previous={previousPeriodStats.totalActiveTime}
+                format={formatDuration}
+              />
+            </div>
+          )}
+
+          {/* Charts */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">State Changes</CardTitle>
+                <CardDescription>
+                  Current vs previous {days}-day period
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DailyStatsChart data={dailyStats} metric="stateChanges" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Active Time</CardTitle>
+                <CardDescription>
+                  Hours per day the entity was active
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DailyStatsChart data={dailyStats} metric="activeTime" />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Stats table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Daily Statistics</CardTitle>
+              <CardDescription>
+                Aggregated from tracked history data
+              </CardDescription>
+            </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -256,7 +358,8 @@ export default function EntityDetailPage() {
               </table>
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        </>
       )}
 
       {/* Inline Insights */}
@@ -314,6 +417,51 @@ function DetailItem({ label, value }: { label: string; value: string }) {
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="font-medium">{value}</p>
     </div>
+  );
+}
+
+function DeltaCard({
+  label,
+  current,
+  previous,
+  format,
+}: {
+  label: string;
+  current: number;
+  previous: number;
+  format?: (n: number) => string;
+}) {
+  const delta = previous > 0 ? ((current - previous) / previous) * 100 : 0;
+  const isUp = delta > 0;
+  const isDown = delta < 0;
+  const fmt = format ?? ((n: number) => String(n));
+
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-3 px-4">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className="text-xl font-bold">{fmt(current)}</span>
+          {previous > 0 && (
+            <span
+              className={`text-xs font-medium ${
+                isUp
+                  ? "text-orange-500"
+                  : isDown
+                    ? "text-blue-500"
+                    : "text-muted-foreground"
+              }`}
+            >
+              {isUp ? "▲" : isDown ? "▼" : "—"}{" "}
+              {Math.abs(delta).toFixed(1)}%
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          prev: {fmt(previous)}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
