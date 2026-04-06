@@ -43,6 +43,12 @@ export const syncJobStatusEnum = pgEnum("sync_job_status", [
   "failed",
 ]);
 
+export const analysisRunStatusEnum = pgEnum("analysis_run_status", [
+  "running",
+  "completed",
+  "failed",
+]);
+
 // ─── Auth Tables (NextAuth.js v5) ───────────────────────────────────────────
 
 export const users = pgTable("users", {
@@ -115,6 +121,7 @@ export const haInstances = pgTable("ha_instances", {
   lastSyncAt: timestamp("last_sync_at", { mode: "date" }),
   status: instanceStatusEnum("status").default("pending").notNull(),
   haVersion: text("ha_version"),
+  analysisWindowDays: integer("analysis_window_days").default(14).notNull(),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
@@ -167,17 +174,45 @@ export const automations = pgTable("automations", {
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
+export const analysisRuns = pgTable("analysis_runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  startedAt: timestamp("started_at", { mode: "date" }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { mode: "date" }),
+  status: analysisRunStatusEnum("status").default("running").notNull(),
+  insightsGenerated: jsonb("insights_generated"), // e.g. { usage_patterns: 3, anomaly_detection: 1 }
+  tokensUsed: integer("tokens_used"),
+  error: text("error"),
+});
+
 export const aiAnalyses = pgTable("ai_analyses", {
   id: uuid("id").defaultRandom().primaryKey(),
   instanceId: uuid("instance_id")
     .notNull()
     .references(() => haInstances.id, { onDelete: "cascade" }),
+  analysisRunId: uuid("analysis_run_id")
+    .references(() => analysisRuns.id, { onDelete: "set null" }),
+  parentId: uuid("parent_id"),
   type: analysisTypeEnum("type").notNull(),
   title: text("title").notNull(),
   content: text("content").notNull(),
   metadata: jsonb("metadata"),
   status: analysisStatusEnum("status").default("new").notNull(),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+export const entityBaselines = pgTable("entity_baselines", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  entityId: uuid("entity_id")
+    .notNull()
+    .references(() => entities.id, { onDelete: "cascade" }),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sunday, 6=Saturday
+  avgStateChanges: numeric("avg_state_changes"),
+  avgActiveTime: numeric("avg_active_time"),
+  stdDevStateChanges: numeric("std_dev_state_changes"),
+  computedAt: timestamp("computed_at", { mode: "date" }).defaultNow().notNull(),
 });
 
 export const syncJobs = pgTable("sync_jobs", {
@@ -214,6 +249,7 @@ export const haInstancesRelations = relations(haInstances, ({ one, many }) => ({
   entities: many(entities),
   automations: many(automations),
   aiAnalyses: many(aiAnalyses),
+  analysisRuns: many(analysisRuns),
   syncJobs: many(syncJobs),
 }));
 
@@ -235,6 +271,16 @@ export const entityDailyStatsRelations = relations(
   })
 );
 
+export const entityBaselinesRelations = relations(
+  entityBaselines,
+  ({ one }) => ({
+    entity: one(entities, {
+      fields: [entityBaselines.entityId],
+      references: [entities.id],
+    }),
+  })
+);
+
 export const automationsRelations = relations(automations, ({ one }) => ({
   instance: one(haInstances, {
     fields: [automations.instanceId],
@@ -242,10 +288,22 @@ export const automationsRelations = relations(automations, ({ one }) => ({
   }),
 }));
 
+export const analysisRunsRelations = relations(analysisRuns, ({ one, many }) => ({
+  instance: one(haInstances, {
+    fields: [analysisRuns.instanceId],
+    references: [haInstances.id],
+  }),
+  analyses: many(aiAnalyses),
+}));
+
 export const aiAnalysesRelations = relations(aiAnalyses, ({ one }) => ({
   instance: one(haInstances, {
     fields: [aiAnalyses.instanceId],
     references: [haInstances.id],
+  }),
+  analysisRun: one(analysisRuns, {
+    fields: [aiAnalyses.analysisRunId],
+    references: [analysisRuns.id],
   }),
 }));
 

@@ -196,6 +196,80 @@ export class HAClient {
     );
   }
 
+  /**
+   * Get the full config for an automation by its config ID.
+   * The config ID is available in the automation state's attributes.id field.
+   * Returns trigger, condition, action arrays, plus mode, alias, description.
+   */
+  async getAutomationConfig(
+    automationId: string
+  ): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>(
+      `/api/config/automation/config/${encodeURIComponent(automationId)}`
+    );
+  }
+
+  /**
+   * Create or update an automation on the HA instance.
+   * @param automationId Unique ID for the automation (e.g., "smarthass_morning_routine_abc123")
+   * @param config The automation config object (alias, trigger, action, condition, etc.)
+   */
+  async createAutomation(
+    automationId: string,
+    config: Record<string, unknown>
+  ): Promise<void> {
+    await this.request<unknown>(
+      `/api/config/automation/config/${encodeURIComponent(automationId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify(config),
+      }
+    );
+  }
+
+  /**
+   * Delete an automation from the HA instance.
+   * @param automationId The automation config ID to delete
+   */
+  async deleteAutomation(automationId: string): Promise<void> {
+    const url = `${this.baseUrl}/api/config/automation/config/${encodeURIComponent(automationId)}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new HAClientError(
+        `HA API error: ${response.status} ${response.statusText}`,
+        response.status
+      );
+    }
+  }
+
+  /**
+   * Reload automations on the HA instance.
+   * Must be called after creating or deleting automations for changes to take effect.
+   */
+  async reloadAutomations(): Promise<void> {
+    await this.request<unknown>(`/api/services/automation/reload`, {
+      method: "POST",
+    });
+  }
+
+  /**
+   * Validate that entity IDs exist on the HA instance.
+   * @returns Object with valid boolean + list of missing entity IDs
+   */
+  async validateEntityIds(
+    entityIds: string[]
+  ): Promise<{ valid: boolean; missing: string[] }> {
+    const states = await this.getStates();
+    const knownIds = new Set(states.map((s) => s.entity_id));
+    const missing = entityIds.filter((id) => !knownIds.has(id));
+    return { valid: missing.length === 0, missing };
+  }
+
   /** Render a Jinja2 template on HA. */
   async renderTemplate(template: string): Promise<string> {
     const url = `${this.baseUrl}/api/template`;

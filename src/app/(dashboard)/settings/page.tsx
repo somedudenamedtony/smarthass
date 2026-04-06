@@ -1,5 +1,6 @@
 import { Separator } from "@/components/ui/separator";
 import { HAInstances } from "@/components/settings/ha-instances";
+import { AnalysisSettings } from "@/components/settings/analysis-settings";
 
 export default function SettingsPage() {
   return (
@@ -12,6 +13,8 @@ export default function SettingsPage() {
       </div>
       <Separator />
       <HAInstances />
+      <Separator />
+      <AnalysisSettings />
     </div>
   );
 }

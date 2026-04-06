@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { HAClient, HAState } from "@/lib/ha-client";
 
 /**
@@ -84,12 +84,34 @@ export async function syncAutomations(
       )
       .limit(1);
 
+    // Fetch full automation config (triggers, conditions, actions) from HA
+    let triggerConfig: unknown = null;
+    let conditionConfig: unknown = null;
+    let actionConfig: unknown = null;
+    let description: string | null = null;
+
+    const configId = auto.attributes.id as string | undefined;
+    if (configId) {
+      try {
+        const config = await client.getAutomationConfig(configId);
+        triggerConfig = config.triggers ?? config.trigger ?? null;
+        conditionConfig = config.conditions ?? config.condition ?? null;
+        actionConfig = config.actions ?? config.action ?? null;
+        description = (config.description as string) || null;
+      } catch {
+        // Config endpoint may not be available — fall back to state attributes
+        triggerConfig = (auto.attributes.trigger as unknown) ?? null;
+        conditionConfig = (auto.attributes.condition as unknown) ?? null;
+        actionConfig = (auto.attributes.action as unknown) ?? null;
+      }
+    }
+
     const data = {
       alias: (auto.attributes.friendly_name as string) ?? null,
-      description: null as string | null,
-      triggerConfig: (auto.attributes.trigger as unknown) ?? null,
-      conditionConfig: (auto.attributes.condition as unknown) ?? null,
-      actionConfig: (auto.attributes.action as unknown) ?? null,
+      description,
+      triggerConfig,
+      conditionConfig,
+      actionConfig,
       enabled: auto.state === "on",
       lastTriggered: auto.attributes.last_triggered
         ? new Date(auto.attributes.last_triggered as string)
@@ -260,6 +282,107 @@ export async function computeDailyStats(
   }
 
   return statsCount;
+}
+
+/**
+ * Compute entity baselines from historical daily stats.
+ * Groups stats by day-of-week and computes average/stddev for state changes and active time.
+ * Requires at least 7 days of data per entity to produce meaningful baselines.
+ */
+export async function computeBaselines(instanceId: string) {
+  // Get tracked entities
+  const trackedEntities = await db
+    .select({
+      id: schema.entities.id,
+      entityId: schema.entities.entityId,
+    })
+    .from(schema.entities)
+    .where(
+      and(
+        eq(schema.entities.instanceId, instanceId),
+        eq(schema.entities.isTracked, true)
+      )
+    );
+
+  if (trackedEntities.length === 0) return 0;
+
+  let baselineCount = 0;
+
+  for (const entity of trackedEntities) {
+    // Get all daily stats (last 60 days) grouped by day of week
+    const stats = await db
+      .select({
+        date: schema.entityDailyStats.date,
+        stateChanges: schema.entityDailyStats.stateChanges,
+        activeTime: schema.entityDailyStats.activeTime,
+      })
+      .from(schema.entityDailyStats)
+      .where(
+        and(
+          eq(schema.entityDailyStats.entityId, entity.id),
+          sql`${schema.entityDailyStats.date} >= ${new Date(Date.now() - 60 * 86400000).toISOString().split("T")[0]}`
+        )
+      );
+
+    if (stats.length < 7) continue; // Not enough data for baselines
+
+    // Group by day of week (0=Sunday)
+    const byDay = new Map<number, { changes: number[]; active: number[] }>();
+    for (const s of stats) {
+      const dayOfWeek = new Date(s.date + "T12:00:00Z").getUTCDay();
+      const bucket = byDay.get(dayOfWeek) || { changes: [], active: [] };
+      bucket.changes.push(s.stateChanges);
+      bucket.active.push(s.activeTime);
+      byDay.set(dayOfWeek, bucket);
+    }
+
+    // Compute averages and stddev per day
+    for (const [dayOfWeek, bucket] of byDay) {
+      const avgChanges = bucket.changes.reduce((a, b) => a + b, 0) / bucket.changes.length;
+      const avgActive = bucket.active.reduce((a, b) => a + b, 0) / bucket.active.length;
+      const stdDevChanges = bucket.changes.length > 1
+        ? Math.sqrt(
+            bucket.changes.reduce((sum, v) => sum + (v - avgChanges) ** 2, 0) /
+              (bucket.changes.length - 1)
+          )
+        : 0;
+
+      // Upsert baseline
+      const existing = await db
+        .select({ id: schema.entityBaselines.id })
+        .from(schema.entityBaselines)
+        .where(
+          and(
+            eq(schema.entityBaselines.entityId, entity.id),
+            eq(schema.entityBaselines.dayOfWeek, dayOfWeek)
+          )
+        )
+        .limit(1);
+
+      const data = {
+        avgStateChanges: avgChanges.toFixed(2),
+        avgActiveTime: avgActive.toFixed(2),
+        stdDevStateChanges: stdDevChanges.toFixed(2),
+        computedAt: new Date(),
+      };
+
+      if (existing[0]) {
+        await db
+          .update(schema.entityBaselines)
+          .set(data)
+          .where(eq(schema.entityBaselines.id, existing[0].id));
+      } else {
+        await db.insert(schema.entityBaselines).values({
+          entityId: entity.id,
+          dayOfWeek,
+          ...data,
+        });
+      }
+      baselineCount++;
+    }
+  }
+
+  return baselineCount;
 }
 
 /**

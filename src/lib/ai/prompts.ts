@@ -2,6 +2,8 @@ import type {
   AnalysisInput,
   DailyStatSnapshot,
   AutomationSnapshot,
+  FeedbackEntry,
+  BaselineSnapshot,
 } from "./types";
 
 /**
@@ -74,6 +76,118 @@ function formatEntitySummary(input: AnalysisInput): string {
   return `Total entities: ${input.entities.length} (${domains}).\nTracked entities: ${input.entities.filter((e) => e.isTracked).length}.`;
 }
 
+function formatFeedback(feedback: FeedbackEntry[]): string {
+  if (feedback.length === 0) return "";
+
+  const dismissed = feedback.filter((f) => f.status === "dismissed");
+  const applied = feedback.filter((f) => f.status === "applied");
+
+  const lines: string[] = [];
+
+  if (dismissed.length > 0) {
+    lines.push("### Previously Dismissed (do NOT repeat similar insights)");
+    for (const f of dismissed) {
+      const entities = f.entityIds.length > 0 ? ` [${f.entityIds.join(", ")}]` : "";
+      lines.push(`- [${f.type}] "${f.title}"${entities}`);
+    }
+  }
+
+  if (applied.length > 0) {
+    lines.push("\n### Previously Applied (these are already automated — look for NEW opportunities)");
+    for (const f of applied) {
+      const entities = f.entityIds.length > 0 ? ` [${f.entityIds.join(", ")}]` : "";
+      lines.push(`- [${f.type}] "${f.title}"${entities}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function formatBaselines(baselines: BaselineSnapshot[]): string {
+  if (baselines.length === 0) return "No historical baselines available yet.";
+
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Group by entity
+  const byEntity = new Map<string, BaselineSnapshot[]>();
+  for (const b of baselines) {
+    const key = b.friendlyName || b.entityId;
+    if (!byEntity.has(key)) byEntity.set(key, []);
+    byEntity.get(key)!.push(b);
+  }
+
+  const lines: string[] = [];
+  for (const [name, entityBaselines] of byEntity) {
+    const domain = entityBaselines[0].domain;
+    lines.push(`\n### ${name} (${domain})`);
+    // Sort by day of week
+    const sorted = [...entityBaselines].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+    for (const b of sorted) {
+      const day = dayNames[b.dayOfWeek] || `Day${b.dayOfWeek}`;
+      const changes = b.avgStateChanges !== null ? `avg ${Number(b.avgStateChanges).toFixed(1)} changes` : "";
+      const active = b.avgActiveTime !== null ? `avg ${Math.round(Number(b.avgActiveTime) / 60)}min active` : "";
+      const stdDev = b.stdDevStateChanges !== null ? `±${Number(b.stdDevStateChanges).toFixed(1)}` : "";
+      const parts = [changes, stdDev, active].filter(Boolean).join(", ");
+      lines.push(`- ${day}: ${parts}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function formatTrendComparison(
+  currentStats: DailyStatSnapshot[],
+  previousStats: DailyStatSnapshot[]
+): string {
+  if (previousStats.length === 0 || currentStats.length === 0) {
+    return "No previous period data available for trend comparison.";
+  }
+
+  // Aggregate per entity for both periods
+  function aggregate(stats: DailyStatSnapshot[]) {
+    const byEntity = new Map<string, { changes: number; active: number; count: number; name: string; domain: string }>();
+    for (const s of stats) {
+      const key = s.entityId;
+      const existing = byEntity.get(key) || { changes: 0, active: 0, count: 0, name: s.friendlyName || s.entityId, domain: s.domain };
+      existing.changes += s.stateChanges;
+      existing.active += s.activeTime;
+      existing.count++;
+      byEntity.set(key, existing);
+    }
+    return byEntity;
+  }
+
+  const current = aggregate(currentStats);
+  const previous = aggregate(previousStats);
+
+  const lines: string[] = [];
+  for (const [entityId, curr] of current) {
+    const prev = previous.get(entityId);
+    if (!prev) continue;
+
+    const changesDelta = prev.changes > 0
+      ? ((curr.changes - prev.changes) / prev.changes * 100).toFixed(0)
+      : null;
+    const activeDelta = prev.active > 0
+      ? ((curr.active - prev.active) / prev.active * 100).toFixed(0)
+      : null;
+
+    const parts: string[] = [];
+    if (changesDelta !== null && Math.abs(Number(changesDelta)) >= 10) {
+      parts.push(`state changes ${Number(changesDelta) > 0 ? "+" : ""}${changesDelta}%`);
+    }
+    if (activeDelta !== null && Math.abs(Number(activeDelta)) >= 10) {
+      parts.push(`active time ${Number(activeDelta) > 0 ? "+" : ""}${activeDelta}%`);
+    }
+
+    if (parts.length > 0) {
+      lines.push(`- **${curr.name}** (${curr.domain}): ${parts.join(", ")}`);
+    }
+  }
+
+  if (lines.length === 0) return "No significant trend changes detected vs. previous period.";
+  return lines.join("\n");
+}
+
 // ── Usage Patterns ──────────────────────────────────────────────────────────
 
 export function buildUsagePatternsPrompt(input: AnalysisInput) {
@@ -90,15 +204,25 @@ Focus on:
 - Usage duration patterns (e.g., "Thermostat runs an average of 8 hours/day")
 - Correlations between entities (e.g., "TV and living room light often change together")
 - Unusual usage levels compared to entity type norms
+- Emerging trends compared to the previous period (if trend data is provided)
+
+IMPORTANT: Check the "User Feedback" section. Do NOT repeat insights similar to dismissed ones. If patterns have been marked as applied/automated, look for new opportunities instead.
 
 Return between 1 and 5 insights, ordered by confidence. Return an empty array if insufficient data.
 Only output valid JSON. No markdown fences or explanation.`;
 
+  const feedbackSection = formatFeedback(input.feedbackHistory);
+  const trendSection = formatTrendComparison(input.dailyStats, input.previousPeriodStats);
+
   const user = `## Home Overview
 ${formatEntitySummary(input)}
 
-## Daily Statistics (last 14 days)
-${formatStats(input.dailyStats)}`;
+## Daily Statistics (last ${input.analysisWindowDays} days)
+${formatStats(input.dailyStats)}
+
+## Trend Comparison (current vs previous period)
+${trendSection}
+${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
 
   return { system, user };
 }
@@ -119,15 +243,25 @@ Look for:
 - Sudden spikes or drops in state changes vs historical baseline
 - Entities stuck in unexpected states for abnormal durations
 - Sensors reporting out-of-range values
+- Deviations from the statistical baselines (if provided) — flag values more than 2 standard deviations from the mean
+
+IMPORTANT: Check the "User Feedback" section. Do NOT repeat anomalies similar to dismissed ones.
 
 Return between 0 and 5 anomalies, ordered by severity. Return an empty array if nothing unusual is detected.
 Only output valid JSON. No markdown fences or explanation.`;
 
+  const feedbackSection = formatFeedback(input.feedbackHistory);
+  const baselinesSection = formatBaselines(input.baselines);
+
   const user = `## Home Overview
 ${formatEntitySummary(input)}
 
-## Daily Statistics (last 14 days)
-${formatStats(input.dailyStats)}`;
+## Daily Statistics (last ${input.analysisWindowDays} days)
+${formatStats(input.dailyStats)}
+
+## Historical Baselines (per day of week)
+${baselinesSection}
+${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
 
   return { system, user };
 }
@@ -150,8 +284,12 @@ Compare:
 - Existing automations that could be improved or extended
 - Common automation patterns for the entity types present that the user hasn't set up
 
+IMPORTANT: Check the "User Feedback" section. Do NOT suggest automations similar to dismissed ones. Previously applied suggestions are already automated — suggest new complementary or advanced automations instead.
+
 Return between 0 and 5 suggestions, ordered by impact. Return an empty array if no clear gaps exist.
 Only output valid JSON. No markdown fences or explanation.`;
+
+  const feedbackSection = formatFeedback(input.feedbackHistory);
 
   const user = `## Home Overview
 ${formatEntitySummary(input)}
@@ -159,8 +297,9 @@ ${formatEntitySummary(input)}
 ## Existing Automations
 ${formatAutomations(input.automations)}
 
-## Daily Statistics (last 14 days)
-${formatStats(input.dailyStats)}`;
+## Daily Statistics (last ${input.analysisWindowDays} days)
+${formatStats(input.dailyStats)}
+${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
 
   return { system, user };
 }
@@ -182,9 +321,15 @@ Look for:
 - Redundant or conflicting automations
 - Climate entities running when patterns suggest nobody is home
 - Lights left on during typical sleep hours
+- Worsening trends compared to the previous period (if trend data is provided)
+
+IMPORTANT: Check the "User Feedback" section. Do NOT repeat suggestions similar to dismissed ones. If efficiency changes have been applied, look for new opportunities.
 
 Return between 0 and 5 insights, ordered by estimated impact. Return an empty array if no clear inefficiencies.
 Only output valid JSON. No markdown fences or explanation.`;
+
+  const feedbackSection = formatFeedback(input.feedbackHistory);
+  const trendSection = formatTrendComparison(input.dailyStats, input.previousPeriodStats);
 
   const user = `## Home Overview
 ${formatEntitySummary(input)}
@@ -192,8 +337,12 @@ ${formatEntitySummary(input)}
 ## Existing Automations
 ${formatAutomations(input.automations)}
 
-## Daily Statistics (last 14 days)
-${formatStats(input.dailyStats)}`;
+## Daily Statistics (last ${input.analysisWindowDays} days)
+${formatStats(input.dailyStats)}
+
+## Trend Comparison (current vs previous period)
+${trendSection}
+${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
 
   return { system, user };
 }

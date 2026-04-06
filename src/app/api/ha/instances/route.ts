@@ -21,6 +21,7 @@ export async function GET() {
       status: schema.haInstances.status,
       haVersion: schema.haInstances.haVersion,
       lastSyncAt: schema.haInstances.lastSyncAt,
+      analysisWindowDays: schema.haInstances.analysisWindowDays,
       createdAt: schema.haInstances.createdAt,
     })
     .from(schema.haInstances)
@@ -90,11 +91,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { id, name, url, token } = body as {
+  const { id, name, url, token, analysisWindowDays } = body as {
     id?: string;
     name?: string;
     url?: string;
     token?: string;
+    analysisWindowDays?: number;
   };
 
   if (!id) {
@@ -129,9 +131,13 @@ export async function PATCH(request: NextRequest) {
     encryptedToken: string;
     status: "connected" | "error" | "pending";
     haVersion: string | null;
+    analysisWindowDays: number;
   }> = {};
 
   if (name) updates.name = name;
+  if (analysisWindowDays && [7, 14, 30].includes(analysisWindowDays)) {
+    updates.analysisWindowDays = analysisWindowDays;
+  }
   if (url) {
     try {
       new URL(url);

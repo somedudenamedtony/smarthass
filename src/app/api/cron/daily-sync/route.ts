@@ -4,7 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { HAClient } from "@/lib/ha-client";
-import { syncEntities, syncAutomations, computeDailyStats } from "@/lib/sync-service";
+import { syncEntities, syncAutomations, computeDailyStats, computeBaselines } from "@/lib/sync-service";
 
 export async function POST(request: NextRequest) {
   // Verify cron secret in cloud mode
@@ -53,6 +53,9 @@ export async function POST(request: NextRequest) {
         // Compute daily stats for tracked entities
         const statsCount = await computeDailyStats(instance.id, client);
 
+        // Compute baselines from historical stats
+        const baselineCount = await computeBaselines(instance.id);
+
         // Update instance sync timestamp
         await db
           .update(schema.haInstances)
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
           .set({
             status: "completed",
             completedAt: new Date(),
-            metadata: { entityCount, automationCount, statsCount },
+            metadata: { entityCount, automationCount, statsCount, baselineCount },
           })
           .where(eq(schema.syncJobs.id, jobId));
 
@@ -75,10 +78,11 @@ export async function POST(request: NextRequest) {
           entityCount,
           automationCount,
           statsCount,
+          baselineCount,
         });
 
         console.log(
-          `[daily-sync] ${instance.name}: ${entityCount} entities, ${automationCount} automations, ${statsCount} stats`
+          `[daily-sync] ${instance.name}: ${entityCount} entities, ${automationCount} automations, ${statsCount} stats, ${baselineCount} baselines`
         );
       } catch (error) {
         const errorMessage =

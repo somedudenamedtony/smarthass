@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
         category as (typeof validCategories)[number]
       )
     ) {
-      const count = await runAnalysis(
+      const { count } = await runAnalysis(
         instanceId,
         category as (typeof validCategories)[number]
       );

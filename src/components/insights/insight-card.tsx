@@ -9,11 +9,22 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface InsightMetadata {
   entityIds?: string[];
   confidence?: number;
   automationYaml?: string;
+  deployedAutomationId?: string;
+  deployedAt?: string;
   anomalyDetails?: {
     entityId: string;
     expectedPattern: string;
@@ -57,8 +68,90 @@ interface InsightCardProps {
 
 export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
   const [yamlExpanded, setYamlExpanded] = useState(false);
+  const [deployDialogOpen, setDeployDialogOpen] = useState(false);
+  const [undeployDialogOpen, setUndeployDialogOpen] = useState(false);
+  const [editableYaml, setEditableYaml] = useState(
+    insight.metadata?.automationYaml ?? ""
+  );
+  const [deploying, setDeploying] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const [deployWarnings, setDeployWarnings] = useState<string[]>([]);
+  const [deploySuccess, setDeploySuccess] = useState<string | null>(null);
   const config = TYPE_CONFIG[insight.type];
   const meta = insight.metadata;
+
+  const isDeployed = !!meta?.deployedAutomationId;
+
+  async function handleDeploy() {
+    setDeploying(true);
+    setDeployError(null);
+    setDeployWarnings([]);
+    setDeploySuccess(null);
+
+    try {
+      const res = await fetch("/api/automations/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          insightId: insight.id,
+          instanceId: insight.instanceId,
+          yamlOverride: editableYaml !== meta?.automationYaml ? editableYaml : undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        const details = data.details
+          ? Array.isArray(data.details)
+            ? data.details.join("; ")
+            : data.details
+          : "";
+        setDeployError(`${data.error}${details ? `: ${details}` : ""}`);
+        if (data.warnings) setDeployWarnings(data.warnings);
+        return;
+      }
+
+      setDeploySuccess(data.automationId);
+      if (data.warnings?.length) setDeployWarnings(data.warnings);
+      // Update parent state
+      onStatusChange(insight.id, "applied");
+    } catch {
+      setDeployError("Network error — could not reach the server");
+    } finally {
+      setDeploying(false);
+    }
+  }
+
+  async function handleUndeploy() {
+    setDeploying(true);
+    setDeployError(null);
+
+    try {
+      const res = await fetch("/api/automations/deploy", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          insightId: insight.id,
+          instanceId: insight.instanceId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDeployError(data.error || "Failed to remove automation");
+        return;
+      }
+
+      setUndeployDialogOpen(false);
+      onStatusChange(insight.id, "viewed");
+    } catch {
+      setDeployError("Network error — could not reach the server");
+    } finally {
+      setDeploying(false);
+    }
+  }
 
   return (
     <Card
@@ -207,15 +300,40 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
             </Button>
           )}
           {insight.type === "automation" &&
+            meta?.automationYaml &&
+            !isDeployed &&
             insight.status !== "applied" && (
+              <Button
+                variant="default"
+                size="xs"
+                onClick={() => {
+                  setEditableYaml(meta.automationYaml!);
+                  setDeployError(null);
+                  setDeployWarnings([]);
+                  setDeploySuccess(null);
+                  setDeployDialogOpen(true);
+                }}
+              >
+                Deploy to HA
+              </Button>
+            )}
+          {isDeployed && (
+            <>
+              <Badge variant="outline" className="text-[10px]">
+                Deployed: {meta?.deployedAutomationId}
+              </Badge>
               <Button
                 variant="ghost"
                 size="xs"
-                onClick={() => onStatusChange(insight.id, "applied")}
+                onClick={() => {
+                  setDeployError(null);
+                  setUndeployDialogOpen(true);
+                }}
               >
-                Mark Applied
+                Remove from HA
               </Button>
-            )}
+            </>
+          )}
           {insight.status === "dismissed" && (
             <Button
               variant="ghost"
@@ -226,6 +344,123 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
             </Button>
           )}
         </div>
+
+        {/* Deploy Confirmation Dialog */}
+        <Dialog open={deployDialogOpen} onOpenChange={setDeployDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Deploy Automation to Home Assistant</DialogTitle>
+              <DialogDescription>
+                Review and optionally edit the automation YAML before deploying.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium mb-1">{insight.title}</p>
+                <p className="text-sm text-muted-foreground">{insight.content}</p>
+              </div>
+
+              {meta?.entityIds && meta.entityIds.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1">Affected Entities:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {meta.entityIds.map((eid) => (
+                      <Badge key={eid} variant="outline" className="text-[10px] font-mono">
+                        {eid}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-medium mb-1">Automation YAML (editable):</p>
+                <textarea
+                  className="w-full rounded-md border bg-muted p-3 text-xs font-mono min-h-[200px] resize-y"
+                  value={editableYaml}
+                  onChange={(e) => setEditableYaml(e.target.value)}
+                />
+              </div>
+
+              {deployError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{deployError}</AlertDescription>
+                </Alert>
+              )}
+
+              {deployWarnings.length > 0 && (
+                <Alert>
+                  <AlertDescription>
+                    <p className="font-medium text-xs">Warnings:</p>
+                    <ul className="list-disc pl-4 text-xs">
+                      {deployWarnings.map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {deploySuccess && (
+                <Alert>
+                  <AlertDescription className="text-xs">
+                    Automation deployed successfully as <code className="font-mono">{deploySuccess}</code>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeployDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeploy}
+                disabled={deploying || !!deploySuccess}
+              >
+                {deploying ? "Deploying…" : deploySuccess ? "Deployed" : "Deploy"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Undeploy Confirmation Dialog */}
+        <Dialog open={undeployDialogOpen} onOpenChange={setUndeployDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Remove Automation from Home Assistant</DialogTitle>
+              <DialogDescription>
+                This will delete the automation <code className="font-mono text-xs">{meta?.deployedAutomationId}</code> from your HA instance. The suggestion will be preserved.
+              </DialogDescription>
+            </DialogHeader>
+
+            {deployError && (
+              <Alert variant="destructive">
+                <AlertDescription>{deployError}</AlertDescription>
+              </Alert>
+            )}
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setUndeployDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleUndeploy}
+                disabled={deploying}
+              >
+                {deploying ? "Removing…" : "Remove"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

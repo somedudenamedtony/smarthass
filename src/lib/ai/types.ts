@@ -44,6 +44,28 @@ export interface AnalysisInput {
   entities: EntitySnapshot[];
   automations: AutomationSnapshot[];
   dailyStats: DailyStatSnapshot[];
+  previousPeriodStats: DailyStatSnapshot[];
+  feedbackHistory: FeedbackEntry[];
+  baselines: BaselineSnapshot[];
+  analysisWindowDays: number;
+}
+
+export interface FeedbackEntry {
+  title: string;
+  type: AnalysisType;
+  status: "dismissed" | "applied";
+  entityIds: string[];
+  createdAt: string;
+}
+
+export interface BaselineSnapshot {
+  entityId: string;
+  friendlyName: string | null;
+  domain: string;
+  dayOfWeek: number;
+  avgStateChanges: number | null;
+  avgActiveTime: number | null;
+  stdDevStateChanges: number | null;
 }
 
 export interface EntitySnapshot {
