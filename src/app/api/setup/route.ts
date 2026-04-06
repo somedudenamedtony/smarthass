@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { setupBodySchema, formatZodError } from "@/lib/validators";
+import { setConfig } from "@/lib/app-config";
 
 /**
  * GET /api/setup — check if setup is needed (no users exist)
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  const { name, email, password } = parsed.data;
+  const { name, email, password, anthropicKey } = parsed.data;
 
   const passwordHash = await bcrypt.hash(password, 12);
 
@@ -55,6 +56,11 @@ export async function POST(request: NextRequest) {
       passwordHash,
     })
     .returning();
+
+  // Save Anthropic API key to app_config if provided
+  if (anthropicKey) {
+    await setConfig("ANTHROPIC_API_KEY", anthropicKey, true);
+  }
 
   return NextResponse.json({
     success: true,

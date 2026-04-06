@@ -6,6 +6,7 @@ import { runAllAnalyses, runAnalysis } from "@/lib/ai/analysis-service";
 import { rateLimit } from "@/lib/rate-limit";
 import { analysisBodySchema, formatZodError } from "@/lib/validators";
 import { NextRequest, NextResponse } from "next/server";
+import { hasConfig } from "@/lib/app-config";
 
 /**
  * POST /api/analysis — trigger on-demand AI analysis
@@ -60,9 +61,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Instance not found" }, { status: 404 });
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!(await hasConfig("ANTHROPIC_API_KEY"))) {
     return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY is not configured" },
+      { error: "Anthropic API key is not configured. Add it in Settings." },
       { status: 503 }
     );
   }

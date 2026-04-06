@@ -50,6 +50,7 @@ export async function GET(request: Request) {
 
   const entities = await db
     .select({
+      id: schema.entities.id,
       entityId: schema.entities.entityId,
       friendlyName: schema.entities.friendlyName,
       domain: schema.entities.domain,
@@ -91,6 +92,7 @@ export async function GET(request: Request) {
       )
     )
     .groupBy(
+      schema.entities.id,
       schema.entities.entityId,
       schema.entities.friendlyName,
       schema.entities.domain,

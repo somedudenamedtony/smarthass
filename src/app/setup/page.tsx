@@ -19,6 +19,7 @@ export default function SetupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [anthropicKey, setAnthropicKey] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -56,7 +57,7 @@ export default function SetupPage() {
       const res = await fetch("/api/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, anthropicKey: anthropicKey || undefined }),
       });
 
       if (res.ok) {
@@ -153,6 +154,25 @@ export default function SetupPage() {
                 placeholder="Repeat password"
                 required
                 minLength={8}
+              />
+            </div>
+
+            <div className="rounded-md border p-4 space-y-3 bg-muted/30">
+              <div>
+                <label htmlFor="anthropicKey" className="text-sm font-medium">
+                  Anthropic API Key
+                </label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Optional — needed for AI analysis features. You can add this later in Settings.
+                </p>
+              </div>
+              <input
+                id="anthropicKey"
+                type="password"
+                value={anthropicKey}
+                onChange={(e) => setAnthropicKey(e.target.value)}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                placeholder="sk-ant-..."
               />
             </div>
 

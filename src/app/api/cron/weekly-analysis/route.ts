@@ -4,6 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { runAllAnalysesBatch } from "@/lib/ai/analysis-service";
+import { hasConfig } from "@/lib/app-config";
 
 export async function POST(request: NextRequest) {
   // Verify cron secret in cloud mode
@@ -20,10 +21,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn("[weekly-analysis] ANTHROPIC_API_KEY not set, skipping");
+  if (!(await hasConfig("ANTHROPIC_API_KEY"))) {
+    console.warn("[weekly-analysis] Anthropic API key not configured, skipping");
     return NextResponse.json(
-      { success: false, error: "ANTHROPIC_API_KEY not configured" },
+      { success: false, error: "Anthropic API key not configured" },
       { status: 503 }
     );
   }

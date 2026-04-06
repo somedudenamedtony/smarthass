@@ -24,12 +24,13 @@ import {
   filterInputByRelevance,
 } from "./prompts";
 import { createHash } from "crypto";
+import { getAnthropicApiKey } from "@/lib/app-config";
 
 // ── Client ──────────────────────────────────────────────────────────────────
 
-function getClient() {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
+async function getClient() {
+  const apiKey = await getAnthropicApiKey();
+  if (!apiKey) throw new Error("Anthropic API key is not configured. Add it in Settings.");
   return new Anthropic({ apiKey });
 }
 
@@ -231,7 +232,7 @@ async function callClaude(
   user: string,
   model: string = "claude-sonnet-4-20250514"
 ): Promise<ClaudeResponse> {
-  const client = getClient();
+  const client = await getClient();
 
   // Token budget check — truncate user prompt if too large
   const estimatedInput = estimateTokens(system + user);
@@ -298,7 +299,7 @@ interface BatchRequest {
 }
 
 async function submitBatch(requests: BatchRequest[]): Promise<string> {
-  const client = getClient();
+  const client = await getClient();
 
   const batch = await client.messages.batches.create({
     requests: requests.map((r) => ({
@@ -326,7 +327,7 @@ async function pollBatchResults(
   batchId: string,
   maxWaitMs: number = 3600_000
 ): Promise<Map<string, ClaudeResponse>> {
-  const client = getClient();
+  const client = await getClient();
   const startTime = Date.now();
   const pollInterval = 30_000;
 

@@ -13,15 +13,25 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   TrendingUp,
   ArrowLeft,
   Search,
   Clock,
   Activity,
   Gauge,
+  Loader2,
+  Calendar,
 } from "lucide-react";
 
 interface TopEntity {
+  id: string;
   entityId: string;
   friendlyName: string | null;
   domain: string;
@@ -43,6 +53,19 @@ interface HAInstance {
   status: string;
 }
 
+interface DailyStatDetail {
+  date: string;
+  stateChanges: number;
+  activeTime: number;
+  avgValue: string | null;
+  stateDistribution: Record<string, number> | null;
+}
+
+interface HistoryEntry {
+  state: string;
+  last_changed: string;
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
@@ -58,6 +81,10 @@ export default function TopEntitiesPage() {
   const [days, setDays] = useState(7);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [selectedEntity, setSelectedEntity] = useState<TopEntity | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [dailyDetails, setDailyDetails] = useState<DailyStatDetail[]>([]);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
 
   useEffect(() => {
     fetch("/api/ha/instances")
@@ -95,6 +122,42 @@ export default function TopEntitiesPage() {
       loadData(selectedInstance, days);
     }
   }, [selectedInstance, days, loadData]);
+
+  async function openDetail(entity: TopEntity) {
+    setSelectedEntity(entity);
+    setDetailLoading(true);
+    setDailyDetails([]);
+    setHistoryEntries([]);
+
+    try {
+      // Fetch per-day breakdown from our DB
+      const detailRes = await fetch(
+        `/api/dashboard/top-entities/detail?entityId=${entity.id}&days=${days}`
+      );
+      if (detailRes.ok) {
+        const data = await detailRes.json();
+        setDailyDetails(data.dailyStats);
+      }
+
+      // Fetch recent history from HA (last 24h sample)
+      if (selectedInstance) {
+        const start = new Date();
+        start.setDate(start.getDate() - 1);
+        const params = new URLSearchParams({
+          instanceId: selectedInstance,
+          start: start.toISOString(),
+          entityIds: entity.entityId,
+        });
+        const histRes = await fetch(`/api/ha/history?${params}`);
+        if (histRes.ok) {
+          const histData: HistoryEntry[][] = await histRes.json();
+          setHistoryEntries(histData[0] ?? []);
+        }
+      }
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   const filtered = entities.filter((e) => {
     const q = search.toLowerCase();
@@ -185,7 +248,8 @@ export default function TopEntitiesPage() {
           {filtered.map((entity, i) => (
             <Card
               key={entity.entityId}
-              className="overflow-hidden transition-colors hover:border-primary/30"
+              className="overflow-hidden transition-colors hover:border-primary/30 cursor-pointer"
+              onClick={() => openDetail(entity)}
             >
               <div className="flex items-start gap-4 p-4">
                 {/* Rank */}
@@ -300,6 +364,138 @@ export default function TopEntitiesPage() {
       <p className="text-xs text-muted-foreground text-center pb-4">
         Showing {filtered.length} of {entities.length} tracked entities
       </p>
+
+      {/* State Changes Detail Modal */}
+      <Dialog
+        open={selectedEntity !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedEntity(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          {selectedEntity && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-primary" />
+                  {selectedEntity.friendlyName || selectedEntity.entityId}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedEntity.totalChanges.toLocaleString()} state changes over {days} days &mdash;{" "}
+                  <span className="font-mono text-xs">{selectedEntity.entityId}</span>
+                </DialogDescription>
+              </DialogHeader>
+
+              {detailLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Per-day breakdown */}
+                  {dailyDetails.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        Daily Breakdown
+                      </h3>
+                      <div className="rounded-lg border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/30 text-left">
+                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Date</th>
+                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Changes</th>
+                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Active Time</th>
+                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">States</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dailyDetails.map((day) => (
+                              <tr key={day.date} className="border-b border-border/20 last:border-0">
+                                <td className="px-3 py-2 font-mono text-xs">
+                                  {new Date(day.date + "T00:00:00").toLocaleDateString(undefined, {
+                                    weekday: "short",
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </td>
+                                <td className="px-3 py-2 text-right font-medium">
+                                  {day.stateChanges}
+                                </td>
+                                <td className="px-3 py-2 text-right text-muted-foreground">
+                                  {formatDuration(day.activeTime)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {day.stateDistribution ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {Object.entries(day.stateDistribution)
+                                        .sort(([, a], [, b]) => (b as number) - (a as number))
+                                        .slice(0, 4)
+                                        .map(([state, seconds]) => (
+                                          <Badge key={state} variant="outline" className="text-[10px] px-1.5 py-0">
+                                            {state}: {formatDuration(seconds as number)}
+                                          </Badge>
+                                        ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">&mdash;</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent state changes from HA history (last 24h) */}
+                  {historyEntries.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        Recent State Changes (last 24h)
+                      </h3>
+                      <div className="rounded-lg border divide-y divide-border/30 max-h-64 overflow-y-auto">
+                        {historyEntries
+                          .filter((_, i, arr) => i === 0 || arr[i].state !== arr[i - 1].state)
+                          .slice(0, 50)
+                          .map((entry, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between px-3 py-2 text-sm"
+                            >
+                              <Badge variant="secondary" className="font-mono text-xs">
+                                {entry.state}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(entry.last_changed).toLocaleString(undefined, {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  second: "2-digit",
+                                  hour12: true,
+                                })}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1.5">
+                        Showing unique transitions (duplicates filtered)
+                      </p>
+                    </div>
+                  )}
+
+                  {dailyDetails.length === 0 && historyEntries.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No detailed data available for this entity yet.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

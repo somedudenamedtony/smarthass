@@ -232,6 +232,13 @@ export const syncJobs = pgTable("sync_jobs", {
   metadata: jsonb("metadata"),
 });
 
+export const appConfig = pgTable("app_config", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  isSecret: boolean("is_secret").default(false).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+});
+
 // ─── Relations ──────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({
