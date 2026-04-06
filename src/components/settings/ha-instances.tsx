@@ -274,7 +274,7 @@ function InstanceDialog({
         const res = await fetch("/api/ha/instances", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, url, accessToken: token }),
+          body: JSON.stringify({ name, url, token }),
         });
 
         if (!res.ok) {

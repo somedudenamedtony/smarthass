@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { isSelfHosted, isCloud } from "@/lib/config";
+import { authConfig } from "@/auth.config";
 
 function getProviders() {
   const providers = [];
@@ -61,6 +62,7 @@ function getProviders() {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   adapter: DrizzleAdapter(db, {
     usersTable: schema.users,
     accountsTable: schema.accounts,
@@ -70,24 +72,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: getProviders(),
   session: {
     strategy: isSelfHosted() ? "jwt" : "database",
-  },
-  pages: {
-    signIn: "/login",
-  },
-  callbacks: {
-    async session({ session, token, user }) {
-      if (token?.sub) {
-        session.user.id = token.sub;
-      } else if (user?.id) {
-        session.user.id = user.id;
-      }
-      return session;
-    },
-    async jwt({ token, user }) {
-      if (user?.id) {
-        token.sub = user.id;
-      }
-      return token;
-    },
   },
 });
