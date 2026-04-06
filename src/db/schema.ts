@@ -27,6 +27,8 @@ export const analysisTypeEnum = pgEnum("analysis_type", [
   "suggestion",
   "automation",
   "anomaly",
+  "correlation",
+  "device_recommendation",
 ]);
 
 export const analysisStatusEnum = pgEnum("analysis_status", [
@@ -139,7 +141,7 @@ export const entities = pgTable("entities", {
   attributes: jsonb("attributes"),
   lastState: text("last_state"),
   lastChangedAt: timestamp("last_changed_at", { mode: "date" }),
-  isTracked: boolean("is_tracked").default(false).notNull(),
+  isTracked: boolean("is_tracked").default(true).notNull(),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 

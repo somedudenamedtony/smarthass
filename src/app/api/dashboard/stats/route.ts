@@ -16,6 +16,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const instanceId = searchParams.get("instanceId");
+  const topLimit = Math.min(Math.max(parseInt(searchParams.get("topLimit") || "5", 10) || 5, 1), 50);
 
   if (!instanceId) {
     return NextResponse.json(
@@ -123,7 +124,7 @@ export async function GET(request: Request) {
       schema.entities.domain
     )
     .orderBy(desc(sql`total_changes`))
-    .limit(5);
+    .limit(topLimit);
 
   // Domain distribution
   const domainDistribution = await db

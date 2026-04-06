@@ -18,6 +18,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Lightbulb,
+  AlertTriangle,
+  Zap,
+  Sparkles,
+  GitBranch,
+  Cpu,
+  Rocket,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+} from "lucide-react";
 
 interface InsightMetadata {
   entityIds?: string[];
@@ -37,13 +53,27 @@ interface InsightMetadata {
     suggestedChange: string;
     estimatedImpact: string;
   };
+  correlationDetails?: {
+    entityPairs: Array<{ entityA: string; entityB: string; relationship: string; strength: number }>;
+    timeWindow: string;
+    patternType: string;
+  };
+  deviceRecommendation?: {
+    suggestedDevice: string;
+    deviceType: string;
+    rationale: string;
+    enhancedEntities: string[];
+    estimatedBenefit: string;
+  };
+  trendDirection?: "improving" | "declining" | "stable" | "volatile";
+  trendPercentage?: number;
   category?: string;
 }
 
 export interface Insight {
   id: string;
   instanceId: string;
-  type: "insight" | "suggestion" | "automation" | "anomaly";
+  type: "insight" | "suggestion" | "automation" | "anomaly" | "correlation" | "device_recommendation";
   title: string;
   content: string;
   metadata: InsightMetadata | null;
@@ -53,12 +83,14 @@ export interface Insight {
 
 const TYPE_CONFIG: Record<
   Insight["type"],
-  { label: string; variant: "default" | "secondary" | "outline" | "destructive" }
+  { label: string; variant: "default" | "secondary" | "outline" | "destructive"; icon: typeof Lightbulb; accentClass: string }
 > = {
-  insight: { label: "Pattern", variant: "default" },
-  suggestion: { label: "Suggestion", variant: "secondary" },
-  automation: { label: "Automation", variant: "outline" },
-  anomaly: { label: "Anomaly", variant: "destructive" },
+  insight: { label: "Pattern", variant: "secondary", icon: Lightbulb, accentClass: "text-chart-4 bg-chart-4/15" },
+  suggestion: { label: "Suggestion", variant: "secondary", icon: Sparkles, accentClass: "text-chart-2 bg-chart-2/15" },
+  automation: { label: "Automation", variant: "default", icon: Zap, accentClass: "text-primary bg-primary/15" },
+  anomaly: { label: "Anomaly", variant: "destructive", icon: AlertTriangle, accentClass: "text-destructive bg-destructive/15" },
+  correlation: { label: "Correlation", variant: "secondary", icon: GitBranch, accentClass: "text-chart-3 bg-chart-3/15" },
+  device_recommendation: { label: "Device Idea", variant: "outline", icon: Cpu, accentClass: "text-chart-5 bg-chart-5/15" },
 };
 
 interface InsightCardProps {
@@ -78,9 +110,11 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
   const [deployWarnings, setDeployWarnings] = useState<string[]>([]);
   const [deploySuccess, setDeploySuccess] = useState<string | null>(null);
   const config = TYPE_CONFIG[insight.type];
+  const Icon = config.icon;
   const meta = insight.metadata;
 
   const isDeployed = !!meta?.deployedAutomationId;
+  const hasYaml = !!meta?.automationYaml;
 
   async function handleDeploy() {
     setDeploying(true);
@@ -114,7 +148,6 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
 
       setDeploySuccess(data.automationId);
       if (data.warnings?.length) setDeployWarnings(data.warnings);
-      // Update parent state
       onStatusChange(insight.id, "applied");
     } catch {
       setDeployError("Network error — could not reach the server");
@@ -155,113 +188,139 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
 
   return (
     <Card
-      className={
+      className={`relative overflow-hidden transition-all duration-200 hover:glow-sm group ${
         insight.status === "new"
-          ? "border-l-4 border-l-primary"
+          ? "border-l-2"
           : insight.status === "dismissed"
-            ? "opacity-60"
+            ? "opacity-50"
             : ""
-      }
+      }`}
+      style={insight.status === "new" ? { borderLeftColor: `var(--color-${insight.type === "anomaly" ? "destructive" : "primary"})` } : undefined}
     >
-      <CardHeader className="pb-2">
+      {/* Subtle gradient overlay */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-gradient-to-br from-primary to-transparent" />
+
+      <CardHeader className="pb-2 relative">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant={config.variant}>{config.label}</Badge>
+            <div className={`h-7 w-7 rounded-lg flex items-center justify-center ${config.accentClass}`}>
+              <Icon className="h-3.5 w-3.5" />
+            </div>
+            <Badge variant={config.variant} className="text-[10px]">{config.label}</Badge>
             {insight.status === "new" && (
-              <Badge variant="default" className="text-[10px]">
-                NEW
-              </Badge>
+              <Badge variant="default" className="text-[10px] glow-sm">NEW</Badge>
             )}
             {insight.status === "applied" && (
-              <Badge variant="outline" className="text-[10px]">
-                Applied
-              </Badge>
+              <Badge variant="outline" className="text-[10px] text-primary">Applied</Badge>
             )}
             {meta?.confidence !== undefined && (
-              <span className="text-xs text-muted-foreground">
-                {Math.round(meta.confidence * 100)}% confidence
-              </span>
+              <div className="flex items-center gap-1">
+                <div className="h-1 w-12 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary/60"
+                    style={{ width: `${meta.confidence * 100}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {Math.round(meta.confidence * 100)}%
+                </span>
+              </div>
             )}
           </div>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
             {new Date(insight.createdAt).toLocaleDateString()}
           </span>
         </div>
         <CardTitle className="text-sm mt-1">{insight.title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground whitespace-pre-line">
+      <CardContent className="space-y-3 relative">
+        <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
           {insight.content}
         </p>
 
         {/* Anomaly details */}
         {meta?.anomalyDetails && (
-          <div className="rounded-md bg-destructive/5 p-3 text-xs space-y-1">
-            <p>
-              <span className="font-medium">Entity:</span>{" "}
-              {meta.anomalyDetails.entityId}
-            </p>
-            <p>
-              <span className="font-medium">Expected:</span>{" "}
-              {meta.anomalyDetails.expectedPattern}
-            </p>
-            <p>
-              <span className="font-medium">Actual:</span>{" "}
-              {meta.anomalyDetails.actualEvent}
-            </p>
-            <p>
-              <span className="font-medium">When:</span>{" "}
-              {new Date(meta.anomalyDetails.timestamp).toLocaleString()}
-            </p>
+          <div className="rounded-lg bg-destructive/5 border border-destructive/10 p-3 text-xs space-y-1">
+            <p><span className="font-medium text-destructive">Entity:</span> <span className="font-mono">{meta.anomalyDetails.entityId}</span></p>
+            <p><span className="font-medium">Expected:</span> {meta.anomalyDetails.expectedPattern}</p>
+            <p><span className="font-medium">Actual:</span> {meta.anomalyDetails.actualEvent}</p>
+            <p><span className="font-medium">When:</span> {new Date(meta.anomalyDetails.timestamp).toLocaleString()}</p>
           </div>
         )}
 
         {/* Efficiency details */}
         {meta?.efficiencyDetails && (
-          <div className="rounded-md bg-muted p-3 text-xs space-y-1">
-            <p>
-              <span className="font-medium">Entity:</span>{" "}
-              {meta.efficiencyDetails.entityId}
-            </p>
-            <p>
-              <span className="font-medium">Current:</span>{" "}
-              {meta.efficiencyDetails.currentUsage}
-            </p>
-            <p>
-              <span className="font-medium">Suggestion:</span>{" "}
-              {meta.efficiencyDetails.suggestedChange}
-            </p>
-            <p>
-              <span className="font-medium">Impact:</span>{" "}
-              {meta.efficiencyDetails.estimatedImpact}
-            </p>
+          <div className="rounded-lg bg-chart-2/5 border border-chart-2/10 p-3 text-xs space-y-1">
+            <p><span className="font-medium">Entity:</span> <span className="font-mono">{meta.efficiencyDetails.entityId}</span></p>
+            <p><span className="font-medium">Current:</span> {meta.efficiencyDetails.currentUsage}</p>
+            <p><span className="font-medium">Suggestion:</span> {meta.efficiencyDetails.suggestedChange}</p>
+            <p><span className="font-medium text-chart-2">Impact:</span> {meta.efficiencyDetails.estimatedImpact}</p>
+          </div>
+        )}
+
+        {/* Correlation details */}
+        {meta?.correlationDetails && (
+          <div className="rounded-lg bg-chart-3/5 border border-chart-3/10 p-3 text-xs space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <GitBranch className="h-3 w-3 text-chart-3" />
+              <span className="font-medium text-chart-3">{meta.correlationDetails.patternType} pattern</span>
+              <span className="text-muted-foreground">({meta.correlationDetails.timeWindow})</span>
+            </div>
+            {meta.correlationDetails.entityPairs.map((pair, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[9px] font-mono">{pair.entityA}</Badge>
+                <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                <Badge variant="outline" className="text-[9px] font-mono">{pair.entityB}</Badge>
+                <div className="h-1 w-8 rounded-full bg-muted overflow-hidden ml-1">
+                  <div className="h-full rounded-full bg-chart-3" style={{ width: `${pair.strength * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Device recommendation details */}
+        {meta?.deviceRecommendation && (
+          <div className="rounded-lg bg-chart-5/5 border border-chart-5/10 p-3 text-xs space-y-1">
+            <p><span className="font-medium text-chart-5">Suggested:</span> {meta.deviceRecommendation.suggestedDevice}</p>
+            <p><span className="font-medium">Type:</span> <Badge variant="outline" className="text-[9px]">{meta.deviceRecommendation.deviceType}</Badge></p>
+            <p><span className="font-medium">Why:</span> {meta.deviceRecommendation.rationale}</p>
+            <p><span className="font-medium">Benefit:</span> {meta.deviceRecommendation.estimatedBenefit}</p>
+            {meta.deviceRecommendation.enhancedEntities.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                <span className="font-medium">Enhances:</span>
+                {meta.deviceRecommendation.enhancedEntities.map((eid) => (
+                  <Badge key={eid} variant="outline" className="text-[9px] font-mono">{eid}</Badge>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {/* Automation YAML */}
-        {meta?.automationYaml && (
+        {hasYaml && (
           <div className="space-y-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setYamlExpanded(!yamlExpanded)}
+              className="text-xs border-border/50"
             >
-              {yamlExpanded ? "Hide" : "Show"} Automation YAML
+              {yamlExpanded ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+              {yamlExpanded ? "Hide" : "Show"} YAML
             </Button>
             {yamlExpanded && (
               <div className="relative">
-                <pre className="rounded-md bg-muted p-3 text-xs overflow-x-auto font-mono">
-                  {meta.automationYaml}
+                <pre className="rounded-lg bg-muted/50 border border-border/30 p-3 text-[11px] overflow-x-auto font-mono leading-relaxed">
+                  {meta!.automationYaml}
                 </pre>
                 <Button
                   variant="ghost"
-                  size="xs"
-                  className="absolute top-1 right-1"
-                  onClick={() => {
-                    navigator.clipboard.writeText(meta.automationYaml!);
-                  }}
+                  size="sm"
+                  className="absolute top-1 right-1 h-7 w-7 p-0"
+                  onClick={() => navigator.clipboard.writeText(meta!.automationYaml!)}
                 >
-                  Copy
+                  <Copy className="h-3 w-3" />
                 </Button>
               </div>
             )}
@@ -272,7 +331,7 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
         {meta?.entityIds && meta.entityIds.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {meta.entityIds.map((eid) => (
-              <Badge key={eid} variant="outline" className="text-[10px] font-mono">
+              <Badge key={eid} variant="outline" className="text-[9px] font-mono border-border/30">
                 {eid}
               </Badge>
             ))}
@@ -280,51 +339,43 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1">
           {insight.status === "new" && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => onStatusChange(insight.id, "viewed")}
-            >
-              Mark Read
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onStatusChange(insight.id, "viewed")}>
+              <Eye className="h-3 w-3 mr-1" /> Mark Read
             </Button>
           )}
           {insight.status !== "dismissed" && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => onStatusChange(insight.id, "dismissed")}
-            >
-              Dismiss
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onStatusChange(insight.id, "dismissed")}>
+              <EyeOff className="h-3 w-3 mr-1" /> Dismiss
             </Button>
           )}
-          {insight.type === "automation" &&
-            meta?.automationYaml &&
-            !isDeployed &&
-            insight.status !== "applied" && (
-              <Button
-                variant="default"
-                size="xs"
-                onClick={() => {
-                  setEditableYaml(meta.automationYaml!);
-                  setDeployError(null);
-                  setDeployWarnings([]);
-                  setDeploySuccess(null);
-                  setDeployDialogOpen(true);
-                }}
-              >
-                Deploy to HA
-              </Button>
-            )}
+          {/* Deploy button for any type with YAML */}
+          {hasYaml && !isDeployed && insight.status !== "applied" && (
+            <Button
+              variant="default"
+              size="sm"
+              className="h-7 text-xs glow-sm"
+              onClick={() => {
+                setEditableYaml(meta!.automationYaml!);
+                setDeployError(null);
+                setDeployWarnings([]);
+                setDeploySuccess(null);
+                setDeployDialogOpen(true);
+              }}
+            >
+              <Rocket className="h-3 w-3 mr-1" /> Deploy to HA
+            </Button>
+          )}
           {isDeployed && (
             <>
-              <Badge variant="outline" className="text-[10px]">
-                Deployed: {meta?.deployedAutomationId}
+              <Badge variant="outline" className="text-[10px] text-primary glow-sm">
+                <Zap className="h-3 w-3 mr-1" /> {meta?.deployedAutomationId}
               </Badge>
               <Button
                 variant="ghost"
-                size="xs"
+                size="sm"
+                className="h-7 text-xs text-destructive"
                 onClick={() => {
                   setDeployError(null);
                   setUndeployDialogOpen(true);
@@ -335,12 +386,8 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
             </>
           )}
           {insight.status === "dismissed" && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => onStatusChange(insight.id, "new")}
-            >
-              Restore
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onStatusChange(insight.id, "new")}>
+              <RotateCcw className="h-3 w-3 mr-1" /> Restore
             </Button>
           )}
         </div>

@@ -16,6 +16,12 @@ import {
   buildAnomalyDetectionPrompt,
   buildAutomationGapsPrompt,
   buildEfficiencyPrompt,
+  buildCrossDeviceCorrelationPrompt,
+  buildDeviceSuggestionPrompt,
+  buildUsageAndEfficiencyPrompt,
+  buildAutomationAndCorrelationPrompt,
+  estimateTokens,
+  filterInputByRelevance,
 } from "./prompts";
 
 // ── Client ──────────────────────────────────────────────────────────────────
@@ -185,6 +191,8 @@ async function gatherAnalysisInput(
 
 // ── Claude Call ──────────────────────────────────────────────────────────────
 
+const MAX_INPUT_TOKENS = 30_000;
+
 interface ClaudeResponse {
   results: AnalysisResult[];
   tokensUsed: number;
@@ -197,15 +205,43 @@ async function callClaude(
 ): Promise<ClaudeResponse> {
   const client = getClient();
 
+  // Token budget check — truncate user prompt if too large
+  const estimatedInput = estimateTokens(system + user);
+  let userPrompt = user;
+  if (estimatedInput > MAX_INPUT_TOKENS) {
+    const maxUserChars = (MAX_INPUT_TOKENS - estimateTokens(system)) * 4;
+    userPrompt = user.slice(0, maxUserChars) + "\n\n[Data truncated to fit token budget]";
+    console.log(
+      `[ai] Truncated prompt from ~${estimatedInput} to ~${MAX_INPUT_TOKENS} estimated tokens`
+    );
+  }
+
+  console.log(
+    `[ai] Calling ${model} — estimated ~${estimateTokens(system + userPrompt)} input tokens`
+  );
+
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
-    system,
-    messages: [{ role: "user", content: user }],
+    // Use prompt caching for system prompt (identical across runs)
+    system: [
+      {
+        type: "text" as const,
+        text: system,
+        cache_control: { type: "ephemeral" as const },
+      },
+    ],
+    messages: [{ role: "user", content: userPrompt }],
   });
 
-  const tokensUsed =
-    (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
+  const inputTokens = response.usage?.input_tokens ?? 0;
+  const outputTokens = response.usage?.output_tokens ?? 0;
+  const cacheRead = (response.usage as unknown as Record<string, number>)?.cache_read_input_tokens ?? 0;
+  const tokensUsed = inputTokens + outputTokens;
+
+  console.log(
+    `[ai] Response: ${inputTokens} input (${cacheRead} cached), ${outputTokens} output = ${tokensUsed} total`
+  );
 
   // Extract text from response
   const text = response.content
@@ -269,7 +305,9 @@ type AnalysisCategory =
   | "usage_patterns"
   | "anomaly_detection"
   | "automation_gaps"
-  | "efficiency";
+  | "efficiency"
+  | "cross_device_correlation"
+  | "device_suggestions";
 
 const ANALYSIS_RUNNERS: Record<
   AnalysisCategory,
@@ -279,6 +317,8 @@ const ANALYSIS_RUNNERS: Record<
   anomaly_detection: buildAnomalyDetectionPrompt,
   automation_gaps: buildAutomationGapsPrompt,
   efficiency: buildEfficiencyPrompt,
+  cross_device_correlation: buildCrossDeviceCorrelationPrompt,
+  device_suggestions: buildDeviceSuggestionPrompt,
 };
 
 /**
@@ -291,12 +331,33 @@ export async function runAnalysis(
   category: AnalysisCategory,
   analysisRunId?: string
 ): Promise<{ count: number; tokensUsed: number }> {
-  const input = await gatherAnalysisInput(instanceId);
+  const rawInput = await gatherAnalysisInput(instanceId);
 
-  // Skip if no meaningful data
-  if (input.dailyStats.length === 0 && category !== "efficiency") {
+  // Filter to top-N relevant entities to control token usage
+  const input = filterInputByRelevance(rawInput, 50);
+
+  // Skip if no meaningful data at all
+  const hasEntities = input.entities.length > 0;
+  const hasDailyStats = input.dailyStats.length > 0;
+
+  // Categories that can run with just entity/automation data (no daily stats required)
+  const entityOnlyCategories: AnalysisCategory[] = [
+    "efficiency",
+    "automation_gaps",
+    "device_suggestions",
+    "cross_device_correlation",
+  ];
+
+  if (!hasDailyStats && !entityOnlyCategories.includes(category)) {
     console.log(
       `[ai] Skipping ${category} for ${instanceId}: no daily stats`
+    );
+    return { count: 0, tokensUsed: 0 };
+  }
+
+  if (!hasEntities) {
+    console.log(
+      `[ai] Skipping ${category} for ${instanceId}: no entities`
     );
     return { count: 0, tokensUsed: 0 };
   }
@@ -316,6 +377,12 @@ export async function runAnalysis(
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+  const categoryFilter =
+    category === "automation_gaps" ? "automation_gap" :
+    category === "cross_device_correlation" ? "cross_device_correlation" :
+    category === "device_suggestions" ? "device_suggestion" :
+    category;
+
   const recentInsights = await db
     .select({
       title: schema.aiAnalyses.title,
@@ -326,7 +393,7 @@ export async function runAnalysis(
       and(
         eq(schema.aiAnalyses.instanceId, instanceId),
         gte(schema.aiAnalyses.createdAt, thirtyDaysAgo),
-        sql`${schema.aiAnalyses.metadata}->>'category' = ${category === "automation_gaps" ? "automation_gap" : category}`
+        sql`${schema.aiAnalyses.metadata}->>'category' = ${categoryFilter}`
       )
     );
 
@@ -360,20 +427,19 @@ export async function runAnalysis(
 }
 
 /**
- * Run all analysis types for an instance.
+ * Run all analysis types for an instance using merged prompts.
+ * Reduces from 6 API calls to 4 by combining related categories:
+ *   1. usage_patterns + efficiency (merged)
+ *   2. anomaly_detection (standalone, Haiku)
+ *   3. automation_gaps + cross_device_correlation (merged)
+ *   4. device_suggestions (standalone)
+ *
  * Creates an analysis_run record for tracking.
  * Returns a summary of insights generated per category.
  */
 export async function runAllAnalyses(
   instanceId: string
 ): Promise<Record<string, number>> {
-  const categories: AnalysisCategory[] = [
-    "usage_patterns",
-    "anomaly_detection",
-    "automation_gaps",
-    "efficiency",
-  ];
-
   // Create analysis run record
   const [run] = await db
     .insert(schema.analysisRuns)
@@ -387,20 +453,149 @@ export async function runAllAnalyses(
   const results: Record<string, number> = {};
   let totalTokens = 0;
 
-  for (const category of categories) {
+  // Gather input once and filter by relevance (shared across all calls)
+  const rawInput = await gatherAnalysisInput(instanceId);
+  const input = filterInputByRelevance(rawInput, 50);
+
+  const hasEntities = input.entities.length > 0;
+  const hasDailyStats = input.dailyStats.length > 0;
+
+  if (!hasEntities) {
+    console.log(`[ai] Skipping all analyses for ${instanceId}: no entities`);
+    await db
+      .update(schema.analysisRuns)
+      .set({ status: "completed", completedAt: new Date(), insightsGenerated: results, tokensUsed: 0 })
+      .where(eq(schema.analysisRuns.id, run.id));
+    return results;
+  }
+
+  // Dedup helper: fetch recent insights and store new ones
+  async function storeResults(
+    analysisResults: AnalysisResult[],
+    categoryFilters: string[]
+  ): Promise<Record<string, number>> {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentInsights = await db
+      .select({ title: schema.aiAnalyses.title, metadata: schema.aiAnalyses.metadata })
+      .from(schema.aiAnalyses)
+      .where(
+        and(
+          eq(schema.aiAnalyses.instanceId, instanceId),
+          gte(schema.aiAnalyses.createdAt, thirtyDaysAgo),
+          sql`${schema.aiAnalyses.metadata}->>'category' IN (${sql.join(
+            categoryFilters.map((c) => sql`${c}`),
+            sql`, `
+          )})`
+        )
+      );
+
+    const counts: Record<string, number> = {};
+    for (const cat of categoryFilters) counts[cat] = 0;
+
+    for (const result of analysisResults) {
+      const duplicateOf = isDuplicate(result, recentInsights);
+      if (duplicateOf) {
+        console.log(`[ai] Skipping duplicate: "${result.title}" (similar to "${duplicateOf}")`);
+        continue;
+      }
+
+      await db.insert(schema.aiAnalyses).values({
+        instanceId,
+        analysisRunId: run.id,
+        type: result.type,
+        title: result.title,
+        content: result.content,
+        metadata: result.metadata,
+        status: "new",
+      });
+
+      recentInsights.push({ title: result.title, metadata: result.metadata });
+      const cat = (result.metadata as { category?: string })?.category;
+      if (cat && cat in counts) counts[cat]++;
+    }
+
+    return counts;
+  }
+
+  // ── Call 1: Usage Patterns + Efficiency (merged, Sonnet) ──────────────
+  if (hasDailyStats) {
     try {
-      const { count, tokensUsed } = await runAnalysis(instanceId, category, run.id);
-      results[category] = count;
+      const { system, user } = buildUsageAndEfficiencyPrompt(input);
+      const { results: r, tokensUsed } = await callClaude(system, user);
+      const counts = await storeResults(r, ["usage_pattern", "efficiency"]);
+      results.usage_patterns = counts.usage_pattern ?? 0;
+      results.efficiency = counts.efficiency ?? 0;
       totalTokens += tokensUsed;
       console.log(
-        `[ai] ${category}: generated ${count} insights for ${instanceId} (${tokensUsed} tokens)`
+        `[ai] usage+efficiency: ${results.usage_patterns}+${results.efficiency} insights (${tokensUsed} tokens)`
       );
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
-      console.error(`[ai] ${category} failed for ${instanceId}:`, msg);
-      results[category] = 0;
+      console.error(`[ai] usage+efficiency failed:`, msg);
+      results.usage_patterns = 0;
+      results.efficiency = 0;
     }
   }
+
+  // ── Call 2: Anomaly Detection (standalone, Haiku) ─────────────────────
+  if (hasDailyStats) {
+    try {
+      const { system, user } = buildAnomalyDetectionPrompt(input);
+      const { results: r, tokensUsed } = await callClaude(
+        system, user, "claude-haiku-4-20250414"
+      );
+      const counts = await storeResults(r, ["anomaly_detection"]);
+      results.anomaly_detection = counts.anomaly_detection ?? 0;
+      totalTokens += tokensUsed;
+      console.log(
+        `[ai] anomaly_detection: ${results.anomaly_detection} insights (${tokensUsed} tokens)`
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[ai] anomaly_detection failed:`, msg);
+      results.anomaly_detection = 0;
+    }
+  }
+
+  // ── Call 3: Automation Gaps + Cross-Device (merged, Sonnet) ───────────
+  try {
+    const { system, user } = buildAutomationAndCorrelationPrompt(input);
+    const { results: r, tokensUsed } = await callClaude(system, user);
+    const counts = await storeResults(r, ["automation_gap", "cross_device_correlation"]);
+    results.automation_gaps = counts.automation_gap ?? 0;
+    results.cross_device_correlation = counts.cross_device_correlation ?? 0;
+    totalTokens += tokensUsed;
+    console.log(
+      `[ai] automation+correlation: ${results.automation_gaps}+${results.cross_device_correlation} insights (${tokensUsed} tokens)`
+    );
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[ai] automation+correlation failed:`, msg);
+    results.automation_gaps = 0;
+    results.cross_device_correlation = 0;
+  }
+
+  // ── Call 4: Device Suggestions (standalone, Sonnet) ───────────────────
+  try {
+    const { system, user } = buildDeviceSuggestionPrompt(input);
+    const { results: r, tokensUsed } = await callClaude(system, user);
+    const counts = await storeResults(r, ["device_suggestion"]);
+    results.device_suggestions = counts.device_suggestion ?? 0;
+    totalTokens += tokensUsed;
+    console.log(
+      `[ai] device_suggestions: ${results.device_suggestions} insights (${tokensUsed} tokens)`
+    );
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[ai] device_suggestions failed:`, msg);
+    results.device_suggestions = 0;
+  }
+
+  console.log(
+    `[ai] All analyses complete for ${instanceId}: ${totalTokens} total tokens used`
+  );
 
   // Update analysis run record
   await db

@@ -8,6 +8,13 @@
       "when": 1775492294773,
       "tag": "0000_careful_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775492400000,
+      "tag": "0001_add_analysis_types",
+      "breakpoints": true
     }
   ]
 }

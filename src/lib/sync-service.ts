@@ -7,6 +7,13 @@ import { HAClient, HAState } from "@/lib/ha-client";
  * Sync entity registry from HA into the database.
  * Pulls all current states, upserts entity records.
  */
+// Domains that should be tracked by default for daily stats / analysis
+const AUTO_TRACK_DOMAINS = new Set([
+  "light", "switch", "climate", "binary_sensor", "cover", "fan",
+  "lock", "media_player", "sensor", "input_boolean", "vacuum",
+  "humidifier", "water_heater",
+]);
+
 export async function syncEntities(instanceId: string, client: HAClient) {
   const states = await client.getStates();
 
@@ -51,6 +58,7 @@ export async function syncEntities(instanceId: string, client: HAClient) {
         attributes: state.attributes,
         lastState: state.state,
         lastChangedAt: new Date(state.last_changed),
+        isTracked: AUTO_TRACK_DOMAINS.has(domain),
       });
     }
   }
@@ -386,11 +394,12 @@ export async function computeBaselines(instanceId: string) {
 }
 
 /**
- * Full sync: entities + automations + mark instance as synced.
+ * Full sync: entities + automations + daily stats + mark instance as synced.
  */
 export async function fullSync(instanceId: string, client: HAClient) {
   const entityCount = await syncEntities(instanceId, client);
   const automationCount = await syncAutomations(instanceId, client);
+  const statsCount = await computeDailyStats(instanceId, client);
 
   // Update last sync time
   await db
@@ -398,5 +407,5 @@ export async function fullSync(instanceId: string, client: HAClient) {
     .set({ lastSyncAt: new Date(), status: "connected" })
     .where(eq(schema.haInstances.id, instanceId));
 
-  return { entityCount, automationCount };
+  return { entityCount, automationCount, statsCount };
 }

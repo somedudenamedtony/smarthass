@@ -4,9 +4,9 @@ import { AnalysisSettings } from "@/components/settings/analysis-settings";
 
 export default function SettingsPage() {
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="max-w-3xl space-y-8 animate-fade-up">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gradient">Settings</h1>
         <p className="text-muted-foreground">
           Manage your Home Assistant connections and preferences.
         </p>

@@ -19,7 +19,11 @@ export function TopEntitiesChart({ data }: { data: TopEntity[] }) {
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    const margin = { top: 8, right: 16, bottom: 32, left: 140 };
+    const maxLabelLen = 28;
+    const truncate = (s: string) =>
+      s.length > maxLabelLen ? s.slice(0, maxLabelLen - 1) + "…" : s;
+
+    const margin = { top: 8, right: 16, bottom: 32, left: 200 };
     const width = svgRef.current.clientWidth - margin.left - margin.right;
     const height = data.length * 40;
 
@@ -34,9 +38,11 @@ export function TopEntitiesChart({ data }: { data: TopEntity[] }) {
       .domain([0, d3.max(data, (d) => d.totalChanges) ?? 1])
       .range([0, width]);
 
+    const labels = data.map((d) => truncate(d.friendlyName || d.entityId));
+
     const y = d3
       .scaleBand()
-      .domain(data.map((d) => d.friendlyName || d.entityId))
+      .domain(labels)
       .range([0, height])
       .padding(0.25);
 
@@ -45,7 +51,7 @@ export function TopEntitiesChart({ data }: { data: TopEntity[] }) {
       .data(data)
       .join("rect")
       .attr("x", 0)
-      .attr("y", (d) => y(d.friendlyName || d.entityId)!)
+      .attr("y", (_d, i) => y(labels[i])!)
       .attr("width", (d) => x(d.totalChanges))
       .attr("height", y.bandwidth())
       .attr("rx", 4)
@@ -57,7 +63,7 @@ export function TopEntitiesChart({ data }: { data: TopEntity[] }) {
       .join("text")
       .attr("class", "fill-primary-foreground text-xs")
       .attr("x", (d) => Math.max(x(d.totalChanges) - 8, 4))
-      .attr("y", (d) => y(d.friendlyName || d.entityId)! + y.bandwidth() / 2)
+      .attr("y", (_d, i) => y(labels[i])! + y.bandwidth() / 2)
       .attr("dy", "0.35em")
       .attr("text-anchor", (d) => (x(d.totalChanges) > 40 ? "end" : "start"))
       .text((d) => d.totalChanges);

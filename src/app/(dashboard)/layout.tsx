@@ -21,7 +21,12 @@ export default async function DashboardLayout({
       <DesktopSidebar email={session.user.email ?? null} />
 
       {/* Main content */}
-      <main className="flex-1 p-4 md:p-8">{children}</main>
+      <main className="flex-1 p-4 md:p-8 relative overflow-x-hidden">
+        {/* Background ambient glow */}
+        <div className="fixed top-0 right-0 w-96 h-96 bg-primary/3 rounded-full blur-3xl pointer-events-none" />
+        <div className="fixed bottom-0 left-64 w-72 h-72 bg-chart-3/3 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10">{children}</div>
+      </main>
     </div>
   );
 }

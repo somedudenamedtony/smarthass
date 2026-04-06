@@ -56,10 +56,13 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center p-4 relative">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 h-[400px] w-[400px] rounded-full bg-primary/5 blur-3xl" />
+      </div>
+      <Card className="w-full max-w-sm relative z-10 border-border/30">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">SmartHass</CardTitle>
+          <CardTitle className="text-2xl text-gradient">SmartHass</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

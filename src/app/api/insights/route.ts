@@ -43,14 +43,15 @@ export async function GET(request: NextRequest) {
   const conditions = [eq(schema.aiAnalyses.instanceId, instanceId)];
 
   const typeFilter = searchParams.get("type");
+  const validTypes = ["insight", "suggestion", "automation", "anomaly", "correlation", "device_recommendation"] as const;
   if (
     typeFilter &&
-    ["insight", "suggestion", "automation", "anomaly"].includes(typeFilter)
+    validTypes.includes(typeFilter as (typeof validTypes)[number])
   ) {
     conditions.push(
       eq(
         schema.aiAnalyses.type,
-        typeFilter as "insight" | "suggestion" | "automation" | "anomaly"
+        typeFilter as (typeof validTypes)[number]
       )
     );
   }

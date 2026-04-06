@@ -73,6 +73,8 @@ export async function POST(request: NextRequest) {
       "anomaly_detection",
       "automation_gaps",
       "efficiency",
+      "cross_device_correlation",
+      "device_suggestions",
     ] as const;
 
     if (

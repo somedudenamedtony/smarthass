@@ -1,6 +1,6 @@
 /** Types for AI analysis engine responses */
 
-export type AnalysisType = "insight" | "suggestion" | "automation" | "anomaly";
+export type AnalysisType = "insight" | "suggestion" | "automation" | "anomaly" | "correlation" | "device_recommendation";
 
 export interface AnalysisResult {
   type: AnalysisType;
@@ -30,12 +30,31 @@ export interface AnalysisMetadata {
     suggestedChange: string;
     estimatedImpact: string;
   };
+  /** For cross-device correlations */
+  correlationDetails?: {
+    entityPairs: Array<{ entityA: string; entityB: string; relationship: string; strength: number }>;
+    timeWindow: string;
+    patternType: string;
+  };
+  /** For device recommendations */
+  deviceRecommendation?: {
+    suggestedDevice: string;
+    deviceType: string;
+    rationale: string;
+    enhancedEntities: string[];
+    estimatedBenefit: string;
+  };
+  /** For trending data */
+  trendDirection?: "improving" | "declining" | "stable" | "volatile";
+  trendPercentage?: number;
   /** Category tag for grouping */
   category?:
     | "usage_pattern"
     | "anomaly_detection"
     | "automation_gap"
-    | "efficiency";
+    | "efficiency"
+    | "cross_device_correlation"
+    | "device_suggestion";
 }
 
 /** Input data shape for the analysis service */

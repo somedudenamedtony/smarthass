@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Cpu, Search, Eye, EyeOff } from "lucide-react";
 
 interface Entity {
   id: string;
@@ -92,15 +93,15 @@ export default function EntitiesPage() {
 
   if (instances.length === 0 && !loading) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold tracking-tight">Entities</h1>
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No Home Assistant instances connected.{" "}
-            <a href="/settings" className="underline">
-              Add one in Settings
-            </a>
-            .
+      <div className="space-y-4 animate-fade-up">
+        <h1 className="text-2xl font-bold tracking-tight text-gradient">Entities</h1>
+        <Card className="border-dashed border-2">
+          <CardContent className="py-16 text-center">
+            <Cpu className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+            <p className="text-muted-foreground">
+              No Home Assistant instances connected.{" "}
+              <a href="/settings" className="text-primary hover:underline">Add one in Settings</a>.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -108,12 +109,12 @@ export default function EntitiesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-up">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Entities</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gradient">Entities</h1>
         {instances.length > 1 && (
           <select
-            className="rounded-md border bg-background px-3 py-1.5 text-sm"
+            className="rounded-lg border border-border/50 bg-card px-3 py-1.5 text-sm"
             value={selectedInstance ?? ""}
             onChange={(e) => {
               setSelectedInstance(e.target.value);
@@ -121,9 +122,7 @@ export default function EntitiesPage() {
             }}
           >
             {instances.map((inst) => (
-              <option key={inst.id} value={inst.id}>
-                {inst.name}
-              </option>
+              <option key={inst.id} value={inst.id}>{inst.name}</option>
             ))}
           </select>
         )}
@@ -131,105 +130,99 @@ export default function EntitiesPage() {
 
       {/* Filters */}
       <div className="flex gap-3">
-        <Input
-          placeholder="Search entities…"
-          className="max-w-sm"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search entities…"
+            className="pl-9 border-border/50"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          />
+        </div>
         {data && (
           <select
-            className="rounded-md border bg-background px-3 py-1.5 text-sm"
+            className="rounded-lg border border-border/50 bg-card px-3 py-1.5 text-sm"
             value={domain}
-            onChange={(e) => {
-              setDomain(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => { setDomain(e.target.value); setPage(1); }}
           >
             <option value="">All domains</option>
             {data.domains.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
+              <option key={d} value={d}>{d}</option>
             ))}
           </select>
         )}
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground text-sm">Loading entities…</p>
+        <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-muted rounded-lg animate-pulse" />)}</div>
       ) : !data || data.entities.length === 0 ? (
-        <Card>
+        <Card className="border-dashed">
           <CardContent className="py-12 text-center text-muted-foreground">
             No entities found. Try syncing your instance first.
           </CardContent>
         </Card>
       ) : (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {data.pagination.total} entities
-              </CardTitle>
-              <CardDescription>
-                Page {data.pagination.page} of {data.pagination.totalPages}
-              </CardDescription>
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">{data.pagination.total} entities</CardTitle>
+                  <CardDescription>Page {data.pagination.page} of {data.pagination.totalPages}</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left">
-                      <th className="px-4 py-2 font-medium">Name</th>
-                      <th className="px-4 py-2 font-medium">Entity ID</th>
-                      <th className="px-4 py-2 font-medium">Domain</th>
-                      <th className="px-4 py-2 font-medium">State</th>
-                      <th className="px-4 py-2 font-medium">Last Changed</th>
-                      <th className="px-4 py-2 font-medium">Tracked</th>
+                    <tr className="border-b border-border/30 text-left bg-muted/30">
+                      <th className="px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wider">Name</th>
+                      <th className="px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wider">Entity ID</th>
+                      <th className="px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wider">Domain</th>
+                      <th className="px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wider">State</th>
+                      <th className="px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wider">Last Changed</th>
+                      <th className="px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wider">Tracked</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.entities.map((entity) => (
                       <tr
                         key={entity.id}
-                        className="border-b last:border-0 hover:bg-muted/50"
+                        className="border-b border-border/20 last:border-0 hover:bg-accent/20 transition-colors"
                       >
-                        <td className="px-4 py-2">
+                        <td className="px-4 py-3">
                           <Link
                             href={`/entities/${entity.id}`}
-                            className="font-medium hover:underline"
+                            className="font-medium text-foreground hover:text-primary transition-colors"
                           >
                             {entity.friendlyName || entity.entityId}
                           </Link>
                         </td>
-                        <td className="px-4 py-2 text-muted-foreground font-mono text-xs">
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
                           {entity.entityId}
                         </td>
-                        <td className="px-4 py-2">
-                          <Badge variant="outline">{entity.domain}</Badge>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="border-border/30 text-xs">{entity.domain}</Badge>
                         </td>
-                        <td className="px-4 py-2">
-                          <Badge variant="secondary">
+                        <td className="px-4 py-3">
+                          <Badge variant="secondary" className="font-mono text-xs">
                             {entity.lastState ?? "—"}
                           </Badge>
                         </td>
-                        <td className="px-4 py-2 text-muted-foreground text-xs">
+                        <td className="px-4 py-3 text-muted-foreground text-xs">
                           {entity.lastChangedAt
                             ? new Date(entity.lastChangedAt).toLocaleString()
                             : "—"}
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-4 py-3">
                           <Button
                             variant={entity.isTracked ? "default" : "outline"}
                             size="sm"
-                            onClick={() =>
-                              toggleTracked(entity.id, entity.isTracked)
-                            }
+                            className={`h-7 text-xs ${entity.isTracked ? "glow-sm" : "border-border/30"}`}
+                            onClick={() => toggleTracked(entity.id, entity.isTracked)}
                           >
-                            {entity.isTracked ? "Tracked" : "Track"}
+                            {entity.isTracked ? <><Eye className="h-3 w-3 mr-1" /> Tracked</> : <><EyeOff className="h-3 w-3 mr-1" /> Track</>}
                           </Button>
                         </td>
                       </tr>
@@ -243,23 +236,13 @@ export default function EntitiesPage() {
           {/* Pagination */}
           {data.pagination.totalPages > 1 && (
             <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="border-border/50">
                 Previous
               </Button>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground px-3">
                 {page} / {data.pagination.totalPages}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= data.pagination.totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
+              <Button variant="outline" size="sm" disabled={page >= data.pagination.totalPages} onClick={() => setPage((p) => p + 1)} className="border-border/50">
                 Next
               </Button>
             </div>
