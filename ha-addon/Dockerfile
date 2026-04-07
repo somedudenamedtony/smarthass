@@ -6,6 +6,8 @@ RUN apk add --no-cache git
 WORKDIR /app
 
 # Clone the full project source (HA Supervisor build context is ha-addon/ only)
+# CACHE_BUST: bump with config.yaml version to force re-clone
+ARG CACHE_BUST=1.0.5
 ARG SMARTHASS_REPO=https://github.com/somedudenamedtony/smarthass.git
 ARG SMARTHASS_REF=main
 RUN git clone --depth=1 --branch=${SMARTHASS_REF} ${SMARTHASS_REPO} .
@@ -29,6 +31,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DEPLOY_MODE=home-assistant
+# Bind to all interfaces — Docker sets HOSTNAME to the container ID by default,
+# which can prevent the Supervisor Ingress proxy from reaching the server
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 
 # Install PostgreSQL 16
 RUN apk add --no-cache postgresql16 postgresql16-contrib su-exec bash
