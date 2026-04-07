@@ -75,8 +75,11 @@ export async function GET(request: Request) {
       )
     );
 
-  // Today's state changes (from entity_daily_stats)
+  // Latest day's state changes (from entity_daily_stats)
+  // Try today first, fall back to most recent day with data
   const today = new Date().toISOString().split("T")[0];
+  let stateChangesDate = today;
+
   const todayStats = await db
     .select({
       totalChanges: sql<number>`coalesce(sum(${schema.entityDailyStats.stateChanges}), 0)`,
@@ -93,6 +96,29 @@ export async function GET(request: Request) {
       )
     );
 
+  // If today has no data, get the most recent day
+  if ((todayStats[0]?.totalChanges ?? 0) === 0) {
+    const latestDay = await db
+      .select({
+        date: schema.entityDailyStats.date,
+        totalChanges: sql<number>`coalesce(sum(${schema.entityDailyStats.stateChanges}), 0)`,
+      })
+      .from(schema.entityDailyStats)
+      .innerJoin(
+        schema.entities,
+        eq(schema.entityDailyStats.entityId, schema.entities.id)
+      )
+      .where(eq(schema.entities.instanceId, instanceId))
+      .groupBy(schema.entityDailyStats.date)
+      .orderBy(desc(schema.entityDailyStats.date))
+      .limit(1);
+
+    if (latestDay[0]) {
+      todayStats[0] = { totalChanges: latestDay[0].totalChanges };
+      stateChangesDate = latestDay[0].date;
+    }
+  }
+
   // Top 5 most active entities (by state changes, last 7 days)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -100,6 +126,7 @@ export async function GET(request: Request) {
 
   const topEntities = await db
     .select({
+      id: schema.entities.id,
       entityId: schema.entities.entityId,
       friendlyName: schema.entities.friendlyName,
       domain: schema.entities.domain,
@@ -119,6 +146,7 @@ export async function GET(request: Request) {
       )
     )
     .groupBy(
+      schema.entities.id,
       schema.entities.entityId,
       schema.entities.friendlyName,
       schema.entities.domain
@@ -164,6 +192,7 @@ export async function GET(request: Request) {
       totalAutomations: totalAutomations.count,
       trackedEntities: trackedCount.count,
       stateChangesToday: todayStats[0]?.totalChanges ?? 0,
+      stateChangesDate,
     },
     topEntities,
     domainDistribution,

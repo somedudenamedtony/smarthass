@@ -80,7 +80,7 @@ export function filterInputByRelevance(
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
-function formatStats(stats: DailyStatSnapshot[], detailedTopN: number = 10): string {
+function formatStats(stats: DailyStatSnapshot[], detailedTopN: number = 20): string {
   if (stats.length === 0) return "No daily statistics available yet.";
 
   const scored = scoreEntities(stats);
@@ -140,10 +140,10 @@ function formatStats(stats: DailyStatSnapshot[], detailedTopN: number = 10): str
       `${sc.name} (${sc.domain}): ${avgChanges}chg/d, ${avgActive}m/d${stateStr}${valueStr}`
     );
 
-    // Full daily breakdown for top entities only (last 3 days)
+    // Full daily breakdown for top entities only (last 5 days)
     if (topEntityIds.has(sc.entityId)) {
       detailedLines.push(`\n### ${sc.name} (${sc.domain})`);
-      for (const s of entityStats.slice(0, 3)) {
+      for (const s of entityStats.slice(0, 5)) {
         let line = `- ${s.date}: ${s.stateChanges}chg, ${Math.round(s.activeTime / 60)}m`;
         if (s.avgValue) line += ` avg=${s.avgValue}`;
         if (s.stateDistribution) {
@@ -153,6 +153,15 @@ function formatStats(stats: DailyStatSnapshot[], detailedTopN: number = 10): str
             .map(([state, secs]) => `${state}:${Math.round(secs / 60)}m`)
             .join(",");
           line += ` [${dist}]`;
+        }
+        // Include hourly activity profile (compact: only hours with activity)
+        if (s.hourlyActivity) {
+          const activeHours = Object.entries(s.hourlyActivity)
+            .filter(([, count]) => count > 0)
+            .sort((a, b) => Number(a[0]) - Number(b[0]))
+            .map(([hour, count]) => `${hour}h:${count}`)
+            .join(",");
+          if (activeHours) line += ` hours={${activeHours}}`;
         }
         detailedLines.push(line);
       }
@@ -356,9 +365,9 @@ Output a JSON array of insight objects:
 - "content": 2-4 sentences explaining the pattern and recommendation
 - "metadata": { "entityIds": [...HA entity_ids], "confidence": 0-1, "category": "usage_pattern" }
 
-Focus on: daily/weekly routines, usage duration patterns, entity correlations, emerging trends.
+Focus on: daily/weekly routines, usage duration patterns, entity correlations, emerging trends. Use hourly activity data (hours={...}) to identify time-of-day patterns and temporal sequences between devices.
 Do NOT repeat dismissed insights from User Feedback. Applied patterns are already handled.
-Return 1-5 insights by confidence. Empty array if insufficient data.
+Return 3-8 insights by confidence. Empty array if insufficient data.
 Only valid JSON, no markdown fences.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
@@ -388,9 +397,9 @@ Output a JSON array of anomaly objects:
 - "content": 2-4 sentences about what's unusual and suggested action
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "anomaly_detection", "anomalyDetails": { "entityId": "...", "expectedPattern": "...", "actualEvent": "...", "timestamp": "..." } }
 
-Look for: unusual-hour activity, spikes/drops vs baseline (>2 std devs), stuck states, out-of-range sensors.
+Look for: unusual-hour activity, spikes/drops vs baseline (>2 std devs), stuck states, out-of-range sensors, devices active at unusual hours (use hourly activity data).
 Do NOT repeat dismissed anomalies from User Feedback.
-Return 0-5 anomalies by severity. Empty array if nothing unusual.
+Return 0-8 anomalies by severity. Empty array if nothing unusual.
 Only valid JSON, no markdown fences.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
@@ -420,9 +429,9 @@ Output a JSON array of suggestion objects:
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "automation_gap", "automationYaml": "..." }
 
 automationYaml must be valid HA automation YAML.
-Look for: manual patterns that could be automated, automations that could be improved, common patterns not yet set up.
+Look for: manual patterns that could be automated, automations that could be improved, common patterns not yet set up. Use hourly activity data to identify time-based automation opportunities.
 Do NOT repeat dismissed suggestions from User Feedback.
-Return 0-5 suggestions by impact. Empty array if no clear gaps.
+Return 0-8 suggestions by impact. Empty array if no clear gaps.
 Only valid JSON, no markdown fences.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
@@ -451,9 +460,9 @@ Output a JSON array of suggestion objects:
 - "content": 2-4 sentences about the inefficiency and recommendation
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "efficiency", "efficiencyDetails": { "entityId": "...", "currentUsage": "...", "suggestedChange": "...", "estimatedImpact": "..." } }
 
-Look for: devices left on too long, unused devices, redundant automations, climate waste, lights on during sleep, worsening trends.
+Look for: devices left on too long, unused devices, redundant automations, climate waste, lights on during sleep (use hourly data), worsening trends.
 Do NOT repeat dismissed suggestions from User Feedback.
-Return 0-5 insights by impact. Empty array if no clear inefficiencies.
+Return 0-8 insights by impact. Empty array if no clear inefficiencies.
 Only valid JSON, no markdown fences.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
@@ -486,9 +495,9 @@ Output a JSON array of correlation objects:
 - "content": 3-5 sentences about the pattern, significance, and automation potential
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "cross_device_correlation", "correlationDetails": { "entityPairs": [{"entityA":"...","entityB":"...","relationship":"...","strength":0-1}], "timeWindow": "...", "patternType": "sequential|simultaneous|inverse|conditional" }, "automationYaml": "..." }
 
-Find: sequential patterns, simultaneous state changes, inverse correlations, conditional patterns, multi-device chains.
+Find: sequential patterns (device A active at hour X then device B at hour X+1), simultaneous state changes (same hours), inverse correlations, conditional patterns, multi-device chains. Use hourly activity data to identify temporal relationships.
 automationYaml must be valid HA YAML. Do NOT repeat dismissed correlations.
-Return 0-5 correlations by strength. Empty array if insufficient data.
+Return 0-8 correlations by strength. Empty array if insufficient data.
 Only valid JSON, no markdown fences.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
@@ -526,7 +535,7 @@ Output a JSON array of recommendations:
 
 Look for: missing sensors, incomplete rooms, energy monitoring gaps, security gaps, routine enhancement opportunities.
 Do NOT repeat dismissed suggestions.
-Return 0-4 recommendations by impact. Empty array if setup seems comprehensive.
+Return 0-6 recommendations by impact. Empty array if setup seems comprehensive.
 Only valid JSON, no markdown fences.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
@@ -562,10 +571,10 @@ Return a JSON array mixing two result types:
 - "type": "suggestion", "title": max 80 chars, "content": 2-4 sentences
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "efficiency", "efficiencyDetails": { "entityId":"...", "currentUsage":"...", "suggestedChange":"...", "estimatedImpact":"..." } }
 
-Usage: daily/weekly routines, duration patterns, entity correlations, trends.
-Efficiency: devices left on too long, unused devices, climate waste, lights on during sleep.
+Usage: daily/weekly routines, duration patterns, entity correlations, trends. Use hourly activity data (hours={...}) to identify time-of-day patterns.
+Efficiency: devices left on too long, unused devices, climate waste, lights on during sleep (check hourly data).
 Do NOT repeat dismissed insights. Applied patterns are already handled.
-Return 2-8 results total (mix of both types) by confidence/impact. Empty array if insufficient data.
+Return 4-12 results total (mix of both types) by confidence/impact. Empty array if insufficient data.
 Only valid JSON, no markdown fences.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
@@ -603,9 +612,9 @@ Return a JSON array mixing two result types:
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "cross_device_correlation", "correlationDetails": { "entityPairs": [{"entityA":"...","entityB":"...","relationship":"...","strength":0-1}], "timeWindow":"...", "patternType":"sequential|simultaneous|inverse|conditional" }, "automationYaml": "..." }
 
 All automationYaml must be valid HA automation YAML.
-Find: manual patterns to automate, sequential/simultaneous/inverse device patterns, multi-device chains, improvements to existing automations.
+Find: manual patterns to automate, sequential/simultaneous/inverse device patterns (use hourly activity data to detect temporal sequences), multi-device chains, improvements to existing automations.
 Do NOT repeat dismissed suggestions.
-Return 2-8 results total (mix of both types). Empty array if no opportunities.
+Return 4-12 results total (mix of both types). Empty array if no opportunities.
 Only valid JSON, no markdown fences.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);

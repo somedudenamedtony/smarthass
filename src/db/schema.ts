@@ -159,6 +159,7 @@ export const entityDailyStats = pgTable("entity_daily_stats", {
   minValue: numeric("min_value"),
   maxValue: numeric("max_value"),
   stateDistribution: jsonb("state_distribution"), // e.g., {"on": 3600, "off": 82800}
+  hourlyActivity: jsonb("hourly_activity"), // e.g., {"0": 0, "7": 5, "8": 12, ...} — state changes per hour
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 

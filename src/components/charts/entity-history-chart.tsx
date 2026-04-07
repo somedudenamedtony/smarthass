@@ -115,7 +115,8 @@ export function EntityHistoryChart({ data, domain }: EntityHistoryChartProps) {
 }
 
 /**
- * Render categorical/binary states as colored horizontal bands.
+ * Render categorical/binary states as colored horizontal bands
+ * with transition markers and hover tooltip.
  */
 function renderCategorical(
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -130,21 +131,135 @@ function renderCategorical(
     .domain(states)
     .range(d3.schemeTableau10);
 
-  // Draw state bands
+  const MIN_BAND_WIDTH = 3;
+
+  // Build segments with resolved positions
+  const segments: { state: string; x0: number; x1: number; start: Date; end: Date }[] = [];
   for (let i = 0; i < data.length; i++) {
     const current = data[i];
     const next = data[i + 1];
-    const x0 = x(new Date(current.last_changed));
-    const x1 = next ? x(new Date(next.last_changed)) : width;
+    const startDate = new Date(current.last_changed);
+    const endDate = next ? new Date(next.last_changed) : new Date();
+    const rawX0 = x(startDate);
+    const rawX1 = next ? x(endDate) : width;
+    segments.push({
+      state: current.state,
+      x0: rawX0,
+      x1: Math.max(rawX1, rawX0 + MIN_BAND_WIDTH),
+      start: startDate,
+      end: endDate,
+    });
+  }
 
+  // Draw state bands
+  for (const seg of segments) {
     g.append("rect")
-      .attr("x", x0)
+      .attr("x", seg.x0)
       .attr("y", 0)
-      .attr("width", Math.max(x1 - x0, 1))
+      .attr("width", seg.x1 - seg.x0)
       .attr("height", height)
-      .attr("fill", colorScale(current.state))
+      .attr("fill", colorScale(seg.state))
       .attr("opacity", 0.7);
   }
+
+  // Draw transition markers at each state change
+  for (let i = 1; i < data.length; i++) {
+    if (data[i].state !== data[i - 1].state) {
+      const xPos = x(new Date(data[i].last_changed));
+      g.append("line")
+        .attr("x1", xPos)
+        .attr("x2", xPos)
+        .attr("y1", 0)
+        .attr("y2", height)
+        .attr("stroke", "var(--foreground)")
+        .attr("stroke-width", 1)
+        .attr("stroke-dasharray", "3,2")
+        .attr("opacity", 0.4);
+    }
+  }
+
+  // Tooltip
+  const tooltip = g
+    .append("g")
+    .attr("class", "chart-tooltip")
+    .style("display", "none");
+
+  const tooltipBg = tooltip
+    .append("rect")
+    .attr("rx", 4)
+    .attr("ry", 4)
+    .attr("fill", "var(--popover)")
+    .attr("stroke", "var(--border)")
+    .attr("stroke-width", 1);
+
+  const tooltipState = tooltip
+    .append("text")
+    .attr("class", "fill-popover-foreground")
+    .attr("font-size", "12px")
+    .attr("font-weight", "600");
+
+  const tooltipTime = tooltip
+    .append("text")
+    .attr("class", "fill-muted-foreground")
+    .attr("font-size", "11px");
+
+  const tooltipDur = tooltip
+    .append("text")
+    .attr("class", "fill-muted-foreground")
+    .attr("font-size", "11px");
+
+  // Hover line
+  const hoverLine = g
+    .append("line")
+    .attr("y1", 0)
+    .attr("y2", height)
+    .attr("stroke", "var(--foreground)")
+    .attr("stroke-width", 1)
+    .attr("opacity", 0)
+    .style("pointer-events", "none");
+
+  // Invisible overlay for mouse events
+  g.append("rect")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("fill", "transparent")
+    .style("cursor", "crosshair")
+    .on("mousemove", function (event) {
+      const [mx] = d3.pointer(event);
+      const hoveredTime = x.invert(mx);
+
+      // Find which segment the cursor is in
+      let seg = segments[segments.length - 1];
+      for (let i = 0; i < segments.length; i++) {
+        if (hoveredTime < segments[i].end || i === segments.length - 1) {
+          seg = segments[i];
+          break;
+        }
+      }
+
+      hoverLine.attr("x1", mx).attr("x2", mx).attr("opacity", 0.3);
+
+      const durMs = seg.end.getTime() - seg.start.getTime();
+      const durStr = formatMs(durMs);
+      const timeStr = seg.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+      tooltipState.text(seg.state).attr("x", 8).attr("y", 16);
+      tooltipTime.text(timeStr).attr("x", 8).attr("y", 30);
+      tooltipDur.text(`Duration: ${durStr}`).attr("x", 8).attr("y", 44);
+
+      const boxW = 160;
+      const boxH = 52;
+      tooltipBg.attr("width", boxW).attr("height", boxH);
+
+      // Position tooltip, flip if near edge
+      const tx = mx + 12 + boxW > width ? mx - boxW - 12 : mx + 12;
+      const ty = Math.min(Math.max(0, height / 2 - boxH / 2), height - boxH);
+      tooltip.attr("transform", `translate(${tx},${ty})`).style("display", null);
+    })
+    .on("mouseleave", function () {
+      tooltip.style("display", "none");
+      hoverLine.attr("opacity", 0);
+    });
 
   // Legend
   const legend = g
@@ -166,4 +281,15 @@ function renderCategorical(
       .attr("class", "fill-muted-foreground text-xs")
       .text(state);
   });
+}
+
+function formatMs(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h`;
 }

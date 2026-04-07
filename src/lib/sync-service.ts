@@ -242,6 +242,9 @@ export async function computeDailyStats(
 
     // Compute state distribution (time spent in each state)
     const stateDistribution: Record<string, number> = {};
+    // Compute hourly activity (state changes per hour 0-23)
+    const hourlyActivity: Record<string, number> = {};
+    for (let h = 0; h < 24; h++) hourlyActivity[String(h)] = 0;
     let activeTime = 0;
 
     for (let i = 0; i < entityHistory.length; i++) {
@@ -256,6 +259,12 @@ export async function computeDailyStats(
 
       stateDistribution[current.state] =
         (stateDistribution[current.state] || 0) + duration;
+
+      // Count state change in the hour it occurred (skip first entry — it's the initial state)
+      if (i > 0) {
+        const hour = new Date(current.last_changed).getHours();
+        hourlyActivity[String(hour)] = (hourlyActivity[String(hour)] || 0) + 1;
+      }
 
       // "Active" states vary by domain
       const activeStates = ["on", "open", "playing", "home", "active"];
@@ -301,6 +310,7 @@ export async function computeDailyStats(
       minValue,
       maxValue,
       stateDistribution,
+      hourlyActivity,
     };
 
     if (existingStat[0]) {
@@ -438,4 +448,25 @@ export async function fullSync(instanceId: string, client: HAClient) {
     .where(eq(schema.haInstances.id, instanceId));
 
   return { entityCount, automationCount, statsCount };
+}
+
+/**
+ * Reconciliation sync: lightweight sync used when WebSocket continuous sync is active.
+ * - Syncs entities from REST (picks up new entities WS hasn't seen)
+ * - Syncs automations (not streamed via WS state_changed events)
+ * - Computes baselines from historical stats
+ * - Skips computeDailyStats since the StateAggregator handles that in real-time
+ */
+export async function reconcileSync(instanceId: string, client: HAClient) {
+  const entityCount = await syncEntities(instanceId, client);
+  const automationCount = await syncAutomations(instanceId, client);
+  const baselineCount = await computeBaselines(instanceId);
+
+  // Update last sync time
+  await db
+    .update(schema.haInstances)
+    .set({ lastSyncAt: new Date(), status: "connected" })
+    .where(eq(schema.haInstances.id, instanceId));
+
+  return { entityCount, automationCount, baselineCount, statsSkipped: true };
 }

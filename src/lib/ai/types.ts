@@ -118,4 +118,5 @@ export interface DailyStatSnapshot {
   minValue: string | null;
   maxValue: string | null;
   stateDistribution: Record<string, number> | null;
+  hourlyActivity: Record<string, number> | null;
 }

@@ -29,10 +29,13 @@ export async function rateLimit(
     INSERT INTO rate_limit_entries (key, timestamps, updated_at)
     VALUES (${key}, ${JSON.stringify([now])}::jsonb, NOW())
     ON CONFLICT (key) DO UPDATE SET
-      timestamps = (
-        SELECT jsonb_agg(ts)
-        FROM jsonb_array_elements_text(rate_limit_entries.timestamps) AS ts
-        WHERE ts::bigint > ${cutoff}
+      timestamps = COALESCE(
+        (
+          SELECT jsonb_agg(ts)
+          FROM jsonb_array_elements_text(rate_limit_entries.timestamps) AS ts
+          WHERE ts::bigint > ${cutoff}
+        ),
+        '[]'::jsonb
       ),
       updated_at = NOW()
     RETURNING timestamps

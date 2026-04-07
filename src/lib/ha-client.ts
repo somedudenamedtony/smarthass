@@ -68,6 +68,22 @@ export class HAClient {
     this.timeoutMs = timeoutMs;
   }
 
+  /**
+   * Create an HAClient using the HA Supervisor token (no decryption needed).
+   * Used in HA add-on mode where the token comes from the environment.
+   */
+  static fromSupervisor(timeoutMs: number = DEFAULT_TIMEOUT_MS): HAClient {
+    const token = process.env.SUPERVISOR_TOKEN;
+    if (!token) {
+      throw new HAClientError("SUPERVISOR_TOKEN not available");
+    }
+    const client = Object.create(HAClient.prototype) as HAClient;
+    client.baseUrl = "http://supervisor/core";
+    client.token = token;
+    client.timeoutMs = timeoutMs;
+    return client;
+  }
+
   private async request<T>(
     path: string,
     options: RequestInit = {}

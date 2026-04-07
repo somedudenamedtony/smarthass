@@ -59,6 +59,14 @@ interface HistoryPoint {
 }
 
 const TIME_RANGES = [7, 14, 30, 90] as const;
+const HISTORY_RANGES = [
+  { label: "1h", hours: 1 },
+  { label: "6h", hours: 6 },
+  { label: "12h", hours: 12 },
+  { label: "24h", hours: 24 },
+  { label: "3d", hours: 72 },
+  { label: "7d", hours: 168 },
+] as const;
 
 export default function EntityDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -71,6 +79,7 @@ export default function EntityDetailPage() {
   const [entityInsights, setEntityInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<number>(30);
+  const [historyHours, setHistoryHours] = useState<number>(24);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -94,7 +103,7 @@ export default function EntityDetailPage() {
   const loadHistory = useCallback(async () => {
     if (!entity) return;
     const start = new Date();
-    start.setDate(start.getDate() - 1);
+    start.setTime(start.getTime() - historyHours * 60 * 60 * 1000);
     const params = new URLSearchParams({
       instanceId: entity.instanceId,
       start: start.toISOString(),
@@ -105,7 +114,7 @@ export default function EntityDetailPage() {
       const data: HistoryPoint[][] = await res.json();
       setHistory(data[0] ?? []);
     }
-  }, [entity]);
+  }, [entity, historyHours]);
 
   useEffect(() => {
     if (entity) loadHistory();
@@ -230,10 +239,27 @@ export default function EntityDetailPage() {
       {/* History chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">State History (24h)</CardTitle>
-          <CardDescription>
-            Live data pulled from Home Assistant
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">State History ({HISTORY_RANGES.find(r => r.hours === historyHours)?.label ?? `${historyHours}h`})</CardTitle>
+              <CardDescription>
+                Live data pulled from Home Assistant
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-1">
+              {HISTORY_RANGES.map((r) => (
+                <Button
+                  key={r.hours}
+                  variant={historyHours === r.hours ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setHistoryHours(r.hours)}
+                >
+                  {r.label}
+                </Button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <EntityHistoryChart data={history} domain={entity.domain} />

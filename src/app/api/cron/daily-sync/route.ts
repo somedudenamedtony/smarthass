@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isCloud } from "@/lib/config";
+import { isCloud, isHomeAssistant } from "@/lib/config";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { HAClient } from "@/lib/ha-client";
-import { syncEntities, syncAutomations, computeDailyStats, computeBaselines, withRetry } from "@/lib/sync-service";
+import { syncEntities, syncAutomations, computeDailyStats, computeBaselines, reconcileSync, withRetry } from "@/lib/sync-service";
 
 export async function POST(request: NextRequest) {
   // Verify cron secret in cloud mode
@@ -14,15 +14,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   } else {
-    // Self-hosted: accept internal calls from node-cron
+    // Self-hosted / HA add-on: accept internal calls from node-cron
     const cronSecret = request.headers.get("x-cron-secret");
     if (cronSecret !== "internal") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
 
+  const useReconciliation = isHomeAssistant();
+
   try {
-    console.log("[daily-sync] Starting daily sync...");
+    console.log(`[daily-sync] Starting ${useReconciliation ? "reconciliation" : "full"} sync...`);
 
     // Get all connected HA instances
     const instances = await db
@@ -39,37 +41,69 @@ export async function POST(request: NextRequest) {
         await db.insert(schema.syncJobs).values({
           id: jobId,
           instanceId: instance.id,
-          type: "daily-sync",
+          type: useReconciliation ? "reconcile-sync" : "daily-sync",
           status: "running",
           startedAt: new Date(),
         });
 
         const client = new HAClient(instance.url, instance.encryptedToken);
 
-        // Sync entities and automations (with retry on transient failures)
-        const entityCount = await withRetry(
-          () => syncEntities(instance.id, client),
-          `syncEntities(${instance.name})`
-        );
-        const automationCount = await withRetry(
-          () => syncAutomations(instance.id, client),
-          `syncAutomations(${instance.name})`
-        );
+        let metadata: Record<string, unknown>;
 
-        // Compute daily stats for tracked entities
-        const statsCount = await withRetry(
-          () => computeDailyStats(instance.id, client),
-          `computeDailyStats(${instance.name})`
-        );
+        if (useReconciliation) {
+          // HA add-on mode: WebSocket handles real-time state tracking,
+          // just reconcile entities/automations and compute baselines
+          const result = await reconcileSync(instance.id, client);
+          metadata = result;
 
-        // Compute baselines from historical stats
-        const baselineCount = await computeBaselines(instance.id);
+          results.push({
+            instanceId: instance.id,
+            name: instance.name,
+            mode: "reconciliation",
+            ...result,
+          });
 
-        // Update instance sync timestamp
-        await db
-          .update(schema.haInstances)
-          .set({ lastSyncAt: new Date() })
-          .where(eq(schema.haInstances.id, instance.id));
+          console.log(
+            `[daily-sync] ${instance.name} (reconcile): ${result.entityCount} entities, ${result.automationCount} automations, ${result.baselineCount} baselines`
+          );
+        } else {
+          // Cloud / self-hosted: full REST-based sync
+          const entityCount = await withRetry(
+            () => syncEntities(instance.id, client),
+            `syncEntities(${instance.name})`
+          );
+          const automationCount = await withRetry(
+            () => syncAutomations(instance.id, client),
+            `syncAutomations(${instance.name})`
+          );
+          const statsCount = await withRetry(
+            () => computeDailyStats(instance.id, client),
+            `computeDailyStats(${instance.name})`
+          );
+          const baselineCount = await computeBaselines(instance.id);
+
+          metadata = { entityCount, automationCount, statsCount, baselineCount };
+
+          // Update instance sync timestamp
+          await db
+            .update(schema.haInstances)
+            .set({ lastSyncAt: new Date() })
+            .where(eq(schema.haInstances.id, instance.id));
+
+          results.push({
+            instanceId: instance.id,
+            name: instance.name,
+            mode: "full",
+            entityCount,
+            automationCount,
+            statsCount,
+            baselineCount,
+          });
+
+          console.log(
+            `[daily-sync] ${instance.name}: ${entityCount} entities, ${automationCount} automations, ${statsCount} stats, ${baselineCount} baselines`
+          );
+        }
 
         // Mark job complete
         await db
@@ -77,22 +111,9 @@ export async function POST(request: NextRequest) {
           .set({
             status: "completed",
             completedAt: new Date(),
-            metadata: { entityCount, automationCount, statsCount, baselineCount },
+            metadata,
           })
           .where(eq(schema.syncJobs.id, jobId));
-
-        results.push({
-          instanceId: instance.id,
-          name: instance.name,
-          entityCount,
-          automationCount,
-          statsCount,
-          baselineCount,
-        });
-
-        console.log(
-          `[daily-sync] ${instance.name}: ${entityCount} entities, ${automationCount} automations, ${statsCount} stats, ${baselineCount} baselines`
-        );
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";

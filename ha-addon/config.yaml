@@ -1,0 +1,33 @@
+name: SmartHass
+description: AI-powered Home Assistant analytics and automation suggestions. Analyzes entity data, detects anomalies, finds automation opportunities, and generates ready-to-deploy YAML configs — powered by Claude AI.
+version: "1.0.0"
+slug: smarthass
+url: https://github.com/atonoy/SmartHass
+homeassistant_api: true
+arch:
+  - amd64
+  - aarch64
+ingress: true
+ingress_port: 3000
+panel_icon: mdi:home-automation
+panel_title: SmartHass
+startup: services
+boot: auto
+init: false
+options:
+  anthropic_api_key: ""
+  log_level: info
+  sync_cron_schedule: "0 3 * * *"
+  analysis_cron_schedule: "0 4 * * 0"
+schema:
+  anthropic_api_key: str
+  log_level: "list(debug|info|warning|error)"
+  sync_cron_schedule: str
+  analysis_cron_schedule: str
+map:
+  - type: data
+    read_only: false
+ports:
+  3000/tcp: null
+ports_description:
+  3000/tcp: SmartHass web interface (accessed via Ingress)

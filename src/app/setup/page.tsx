@@ -30,6 +30,24 @@ export default function SetupPage() {
         const data = await res.json();
         if (!data.needsSetup) {
           router.replace("/login");
+          return;
+        }
+        // HA add-on mode: auto-setup without user interaction
+        if (data.isHomeAssistant) {
+          setSubmitting(true);
+          const setupRes = await fetch("/api/setup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          if (setupRes.ok) {
+            router.replace("/dashboard");
+          } else {
+            const err = await setupRes.json();
+            setError(err.error || "Auto-setup failed.");
+            setSubmitting(false);
+          }
+          return;
         }
       } finally {
         setChecking(false);

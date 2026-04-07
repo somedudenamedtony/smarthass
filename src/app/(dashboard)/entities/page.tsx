@@ -25,6 +25,7 @@ interface Entity {
   lastState: string | null;
   lastChangedAt: string | null;
   isTracked: boolean;
+  stateDistribution: Record<string, number> | null;
 }
 
 interface EntitiesResponse {
@@ -236,9 +237,30 @@ export default function EntitiesPage() {
                           <Badge variant="outline" className="border-border/30 text-xs">{entity.domain}</Badge>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant="secondary" className="font-mono text-xs">
-                            {entity.lastState ?? "—"}
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge variant="secondary" className="font-mono text-xs">
+                              {entity.lastState ?? "—"}
+                            </Badge>
+                            {entity.stateDistribution && (() => {
+                              const totalSecs = Object.values(entity.stateDistribution).reduce((a, b) => a + b, 0);
+                              if (totalSecs === 0) return null;
+                              const sorted = Object.entries(entity.stateDistribution)
+                                .sort(([, a], [, b]) => b - a);
+                              return sorted.map(([state, secs]) => {
+                                const pct = Math.round((secs / totalSecs) * 100);
+                                if (pct < 1) return null;
+                                return (
+                                  <span
+                                    key={state}
+                                    className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground"
+                                    title={`${state}: ${pct}% of last 7 days`}
+                                  >
+                                    {state} {pct}%
+                                  </span>
+                                );
+                              });
+                            })()}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground text-xs">
                           {entity.lastChangedAt

@@ -11,14 +11,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   AlertCircle,
   Brain,
   Coins,
@@ -30,6 +22,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SyncDialog, type SyncResult } from "@/components/sync-dialog";
 
 interface HAInstance {
   id: string;
@@ -123,13 +116,7 @@ export default function AIUsagePage() {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
-  const [syncResult, setSyncResult] = useState<{
-    success: boolean;
-    entitiesSynced?: number;
-    statsSynced?: number;
-    automationsSynced?: number;
-    error?: string;
-  } | null>(null);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
   useEffect(() => {
     fetch("/api/ha/instances")
@@ -271,80 +258,12 @@ export default function AIUsagePage() {
       </div>
 
       {/* Sync progress dialog */}
-      <Dialog
+      <SyncDialog
         open={syncDialogOpen}
-        onOpenChange={(open) => {
-          if (!syncing) setSyncDialogOpen(open);
-        }}
-      >
-        <DialogContent showCloseButton={!syncing} className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {syncResult === null
-                ? "Syncing with Home Assistant"
-                : syncResult.success
-                  ? "Sync Complete"
-                  : "Sync Failed"}
-            </DialogTitle>
-            <DialogDescription>
-              {syncResult === null
-                ? "Fetching latest data from your Home Assistant instance…"
-                : syncResult.success
-                  ? "Your data has been synced successfully."
-                  : syncResult.error}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Processing state */}
-          {syncResult === null && (
-            <div className="space-y-3 py-2">
-              {["Entities", "Daily Statistics", "Automations"].map((label) => (
-                <div key={label} className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
-                  <span>{label}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Success state */}
-          {syncResult?.success && (
-            <div className="space-y-3 py-2">
-              {[
-                { label: "Entities", count: syncResult.entitiesSynced },
-                { label: "Daily Statistics", count: syncResult.statsSynced },
-                { label: "Automations", count: syncResult.automationsSynced },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.count != null && (
-                    <Badge variant="secondary">{item.count}</Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Error state */}
-          {syncResult && !syncResult.success && (
-            <div className="flex items-start gap-3 rounded-lg bg-destructive/10 p-3 text-sm">
-              <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <span>{syncResult.error}</span>
-            </div>
-          )}
-
-          {syncResult !== null && (
-            <DialogFooter>
-              <Button onClick={() => setSyncDialogOpen(false)}>
-                {syncResult.success ? "Done" : "Close"}
-              </Button>
-            </DialogFooter>
-          )}
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setSyncDialogOpen}
+        syncing={syncing}
+        syncResult={syncResult}
+      />
 
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

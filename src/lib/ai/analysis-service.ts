@@ -102,6 +102,7 @@ async function gatherAnalysisInput(
       minValue: schema.entityDailyStats.minValue,
       maxValue: schema.entityDailyStats.maxValue,
       stateDistribution: schema.entityDailyStats.stateDistribution,
+      hourlyActivity: schema.entityDailyStats.hourlyActivity,
     })
     .from(schema.entityDailyStats)
     .innerJoin(
@@ -119,6 +120,7 @@ async function gatherAnalysisInput(
   const allStats: DailyStatSnapshot[] = allStatsRaw.map((s) => ({
     ...s,
     stateDistribution: s.stateDistribution as Record<string, number> | null,
+    hourlyActivity: s.hourlyActivity as Record<string, number> | null,
   }));
 
   // Split into current and previous periods
@@ -251,7 +253,7 @@ async function callClaude(
 
   const response = await client.messages.create({
     model,
-    max_tokens: 4096,
+    max_tokens: 8192,
     // Use prompt caching for system prompt (identical across runs)
     system: [
       {
@@ -306,7 +308,7 @@ async function submitBatch(requests: BatchRequest[]): Promise<string> {
       custom_id: r.customId,
       params: {
         model: r.model,
-        max_tokens: 4096,
+        max_tokens: 8192,
         system: [
           {
             type: "text" as const,
@@ -419,7 +421,7 @@ function isDuplicate(
       : 0;
 
     // Consider duplicate if title very similar OR both title somewhat similar + entity overlap
-    if (titleSimilarity > 0.6 || (titleSimilarity > 0.4 && entityOverlap > 0.5)) {
+    if (titleSimilarity > 0.7 || (titleSimilarity > 0.5 && entityOverlap > 0.6)) {
       return exTitle;
     }
   }

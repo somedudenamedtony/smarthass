@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -23,6 +23,7 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const authError = searchParams.get("error");
@@ -31,6 +32,20 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(authError ? "Authentication failed." : "");
   const [submitting, setSubmitting] = useState(false);
+
+  // In HA mode, skip login entirely
+  useEffect(() => {
+    async function checkHA() {
+      try {
+        const res = await fetch("/api/setup");
+        const data = await res.json();
+        if (data.isHomeAssistant) {
+          router.replace("/dashboard");
+        }
+      } catch {}
+    }
+    checkHA();
+  }, [router]);
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();

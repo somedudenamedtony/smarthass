@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-import { eq, and, like, sql, count } from "drizzle-orm";
+import { eq, and, like, sql, count, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { entityPatchSchema, formatZodError } from "@/lib/validators";
 
@@ -84,6 +84,44 @@ export async function GET(request: NextRequest) {
     .limit(limit)
     .offset((page - 1) * limit);
 
+  // Fetch recent state distributions for the returned entities
+  const entityIds = entities.map((e) => e.id);
+  let stateDistMap: Record<string, Record<string, number>> = {};
+  if (entityIds.length > 0) {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const weekAgoStr = sevenDaysAgo.toISOString().split("T")[0];
+
+    const statsRows = await db
+      .select({
+        entityId: schema.entityDailyStats.entityId,
+        stateDistribution: schema.entityDailyStats.stateDistribution,
+      })
+      .from(schema.entityDailyStats)
+      .where(
+        and(
+          inArray(schema.entityDailyStats.entityId, entityIds),
+          sql`${schema.entityDailyStats.date} >= ${weekAgoStr}`
+        )
+      );
+
+    // Aggregate state distributions across days
+    for (const row of statsRows) {
+      const dist = row.stateDistribution as Record<string, number> | null;
+      if (!dist) continue;
+      if (!stateDistMap[row.entityId]) stateDistMap[row.entityId] = {};
+      for (const [state, secs] of Object.entries(dist)) {
+        stateDistMap[row.entityId][state] =
+          (stateDistMap[row.entityId][state] || 0) + secs;
+      }
+    }
+  }
+
+  const entitiesWithStates = entities.map((e) => ({
+    ...e,
+    stateDistribution: stateDistMap[e.id] || null,
+  }));
+
   // Distinct domains for filter
   const domains = await db
     .selectDistinct({ domain: schema.entities.domain })
@@ -92,7 +130,7 @@ export async function GET(request: NextRequest) {
     .orderBy(schema.entities.domain);
 
   return NextResponse.json({
-    entities,
+    entities: entitiesWithStates,
     domains: domains.map((d) => d.domain),
     pagination: {
       page,

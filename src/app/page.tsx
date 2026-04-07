@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Brain,
@@ -8,8 +9,14 @@ import {
   Cpu,
   Sparkles,
 } from "lucide-react";
+import { isHomeAssistant } from "@/lib/config";
 
 export default function Home() {
+  // In HA add-on mode, skip the landing page entirely
+  if (isHomeAssistant()) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-8">
       {/* Background effects */}

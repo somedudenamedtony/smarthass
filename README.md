@@ -10,6 +10,29 @@ AI-powered companion for Home Assistant. Connect your HA instance, and SmartHass
 - **AI Insights** — Four analysis types: usage patterns, anomaly detection, automation gaps, efficiency suggestions
 - **Automation Suggestions** — AI-generated HA automation YAML you can copy directly into your configuration
 - **Dual Deployment** — Run on Vercel (cloud, multi-user) or self-host with Docker (single-user, data stays local)
+- **Home Assistant Add-on** — Install directly in HA with continuous real-time sync via WebSocket
+
+---
+
+## Home Assistant Add-on (Recommended)
+
+The easiest way to run SmartHass — install it as a native Home Assistant add-on. Data syncs in real-time via WebSocket, authentication is handled by HA, and PostgreSQL is bundled inside the container.
+
+### Installation
+
+1. In Home Assistant, go to **Settings → Add-ons → Add-on Store**
+2. Click the three-dot menu (top-right) → **Repositories**
+3. Add: `https://github.com/somedudenamedtony/smarthass`
+4. Find **SmartHass** in the store and click **Install**
+5. In the add-on **Configuration** tab, set your **Anthropic API Key**
+6. Click **Start** — SmartHass auto-configures and opens in the sidebar
+
+### How it works
+
+- **Real-time sync** — Entity state changes stream via HA WebSocket (no polling)
+- **Daily reconciliation** — New entities and automations are picked up automatically
+- **No separate login** — Authentication is handled by HA Ingress
+- **Local data** — PostgreSQL runs inside the add-on container, data stored in `/data`
 
 ---
 
@@ -156,7 +179,7 @@ See [`.env.example`](.env.example) for the full annotated list. Key variables:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DEPLOY_MODE` | Yes | `cloud` or `self-hosted` |
+| `DEPLOY_MODE` | Yes | `cloud`, `self-hosted`, or `home-assistant` |
 | `DATABASE_URL` | Yes | Postgres connection string |
 | `AUTH_SECRET` | Yes | Session signing secret |
 | `ENCRYPTION_KEY` | Yes | 32-byte hex key for AES-256-GCM token encryption |
@@ -178,8 +201,8 @@ See [`.env.example`](.env.example) for the full annotated list. Key variables:
 | Auth | NextAuth.js v5 — OAuth for cloud, credentials for self-hosted |
 | Database | Postgres via Drizzle ORM (Neon HTTP driver for cloud, node-postgres for self-hosted) |
 | AI | Anthropic Claude — Sonnet 4 for analysis, Haiku 4 for classification |
-| Scheduling | Vercel Cron (cloud) / node-cron (self-hosted) |
-| Infrastructure | Docker + Docker Compose (self-hosted), Vercel (cloud) |
+| Scheduling | Vercel Cron (cloud) / node-cron (self-hosted / HA add-on) |
+| Infrastructure | Docker + Docker Compose (self-hosted), Vercel (cloud), HA Add-on (home-assistant) |
 
 ## Architecture
 
@@ -219,6 +242,8 @@ src/
 ├── lib/
 │   ├── ai/              # AI analysis engine (prompts, service, types, YAML)
 │   ├── ha-client.ts     # Home Assistant REST API client
+│   ├── ha-websocket.ts  # HA WebSocket connection for real-time state sync
+│   ├── state-aggregator.ts # In-memory state aggregation with periodic DB flush
 │   ├── sync-service.ts  # Entity sync, automation sync, daily stats
 │   ├── encryption.ts    # AES-256-GCM token encryption
 │   ├── rate-limit.ts    # In-memory rate limiter

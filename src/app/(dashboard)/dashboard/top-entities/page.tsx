@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MultiSelect } from "@/components/ui/multi-select";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
   Gauge,
   Loader2,
   Calendar,
+  X,
 } from "lucide-react";
 
 interface TopEntity {
@@ -81,6 +83,10 @@ export default function TopEntitiesPage() {
   const [days, setDays] = useState(7);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [domainFilter, setDomainFilter] = useState<Set<string>>(new Set());
+  const [stateFilter, setStateFilter] = useState<Set<string>>(new Set());
+  const [areaFilter, setAreaFilter] = useState<Set<string>>(new Set());
+  const [platformFilter, setPlatformFilter] = useState<Set<string>>(new Set());
   const [selectedEntity, setSelectedEntity] = useState<TopEntity | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [dailyDetails, setDailyDetails] = useState<DailyStatDetail[]>([]);
@@ -159,14 +165,20 @@ export default function TopEntitiesPage() {
     }
   }
 
+  // Derive filter options from loaded data
+  const domains = [...new Set(entities.map((e) => e.domain))].sort();
+  const states = [...new Set(entities.map((e) => e.lastState).filter(Boolean) as string[])].sort();
+  const areas = [...new Set(entities.map((e) => e.areaId).filter(Boolean) as string[])].sort();
+  const platforms = [...new Set(entities.map((e) => e.platform).filter(Boolean) as string[])].sort();
+
   const filtered = entities.filter((e) => {
     const q = search.toLowerCase();
-    return (
-      !q ||
-      (e.friendlyName?.toLowerCase().includes(q)) ||
-      e.entityId.toLowerCase().includes(q) ||
-      e.domain.toLowerCase().includes(q)
-    );
+    if (q && !(e.friendlyName?.toLowerCase().includes(q)) && !e.entityId.toLowerCase().includes(q) && !e.domain.toLowerCase().includes(q)) return false;
+    if (domainFilter.size > 0 && !domainFilter.has(e.domain)) return false;
+    if (stateFilter.size > 0 && (!e.lastState || !stateFilter.has(e.lastState))) return false;
+    if (areaFilter.size > 0 && (!e.areaId || !areaFilter.has(e.areaId))) return false;
+    if (platformFilter.size > 0 && (!e.platform || !platformFilter.has(e.platform))) return false;
+    return true;
   });
 
   return (
@@ -225,6 +237,55 @@ export default function TopEntitiesPage() {
           </select>
         )}
       </div>
+
+      {/* Filters */}
+      {!loading && entities.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {domains.length > 1 && (
+            <MultiSelect
+              label="Domain"
+              options={domains}
+              selected={domainFilter}
+              onChange={setDomainFilter}
+            />
+          )}
+          {states.length > 1 && (
+            <MultiSelect
+              label="State"
+              options={states}
+              selected={stateFilter}
+              onChange={setStateFilter}
+            />
+          )}
+          {areas.length > 1 && (
+            <MultiSelect
+              label="Area"
+              options={areas}
+              selected={areaFilter}
+              onChange={setAreaFilter}
+            />
+          )}
+          {platforms.length > 1 && (
+            <MultiSelect
+              label="Platform"
+              options={platforms}
+              selected={platformFilter}
+              onChange={setPlatformFilter}
+            />
+          )}
+          {(domainFilter.size > 0 || stateFilter.size > 0 || areaFilter.size > 0 || platformFilter.size > 0) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setDomainFilter(new Set()); setStateFilter(new Set()); setAreaFilter(new Set()); setPlatformFilter(new Set()); }}
+              className="text-xs text-muted-foreground"
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear all
+            </Button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">

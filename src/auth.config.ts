@@ -5,9 +5,14 @@ import type { NextAuthConfig } from "next-auth";
  * Does NOT import any Node.js-only modules (bcrypt, drizzle, pg, crypto).
  * Full providers and adapter are added in auth.ts.
  */
+
+function isHAMode() {
+  return process.env.DEPLOY_MODE === "home-assistant";
+}
+
 export const authConfig = {
   pages: {
-    signIn: "/login",
+    signIn: isHAMode() ? "/dashboard" : "/login",
   },
   providers: [], // Populated in auth.ts — kept empty here for Edge compatibility
   callbacks: {
@@ -26,6 +31,9 @@ export const authConfig = {
       return token;
     },
     authorized({ auth, request: { nextUrl } }) {
+      // HA add-on mode: all requests are trusted (Supervisor handles auth)
+      if (isHAMode()) return true;
+
       const { pathname } = nextUrl;
 
       // Public routes

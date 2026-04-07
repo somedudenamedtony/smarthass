@@ -7,11 +7,15 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-import { isSelfHosted, isCloud } from "@/lib/config";
+import { isSelfHosted, isCloud, isHomeAssistant, features } from "@/lib/config";
 import { authConfig } from "@/auth.config";
 
 function getProviders() {
-  const providers = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const providers: any[] = [];
+
+  // HA add-on mode: no auth providers needed (Supervisor handles auth)
+  if (isHomeAssistant()) return providers;
 
   if (isCloud()) {
     if (process.env.AUTH_GITHUB_ID) {
@@ -22,7 +26,7 @@ function getProviders() {
     }
   }
 
-  if (isSelfHosted()) {
+  if (features.credentialsAuth) {
     providers.push(
       Credentials({
         name: "credentials",

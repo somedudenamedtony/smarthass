@@ -24,9 +24,11 @@ import {
   Settings2,
   Wifi,
   WifiOff,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SyncDialog, type SyncResult } from "@/components/sync-dialog";
 
 interface DashboardData {
   instance: {
@@ -41,8 +43,10 @@ interface DashboardData {
     totalAutomations: number;
     trackedEntities: number;
     stateChangesToday: number;
+    stateChangesDate: string;
   };
   topEntities: {
+    id: string;
     entityId: string;
     friendlyName: string | null;
     domain: string;
@@ -92,6 +96,9 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<DashboardPreferences>({});
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const { toast } = useToast();
 
   // Load preferences
@@ -120,7 +127,7 @@ export default function DashboardPage() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/dashboard/stats?instanceId=${instanceId}`
+        `/api/dashboard/stats?instanceId=${instanceId}&topLimit=50`
       );
       if (res.ok) {
         setData(await res.json());
@@ -139,6 +146,36 @@ export default function DashboardPage() {
       loadDashboard(selectedInstance);
     }
   }, [selectedInstance, loadDashboard]);
+
+  const handleSync = useCallback(async () => {
+    if (!selectedInstance || syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    setSyncDialogOpen(true);
+    try {
+      const res = await fetch("/api/ha/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instanceId: selectedInstance }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncResult({
+          success: true,
+          entitiesSynced: data.entitiesSynced,
+          statsSynced: data.statsSynced,
+          automationsSynced: data.automationsSynced,
+        });
+        loadDashboard(selectedInstance);
+      } else {
+        setSyncResult({ success: false, error: data.error || "Sync failed" });
+      }
+    } catch {
+      setSyncResult({ success: false, error: "Network error. Please try again." });
+    } finally {
+      setSyncing(false);
+    }
+  }, [selectedInstance, syncing, loadDashboard]);
 
   const savePreferences = useCallback(async (prefs: DashboardPreferences) => {
     setPreferences(prefs);
@@ -274,8 +311,11 @@ export default function DashboardPage() {
             color="chart-3"
           />
           <MetricCard
-            label="State Changes Today"
-            value={data.metrics.stateChangesToday}
+            label={data.metrics.stateChangesDate === new Date().toISOString().split("T")[0]
+              ? "State Changes Today"
+              : `State Changes (${new Date(data.metrics.stateChangesDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })})`
+            }
+            value={data.metrics.stateChangesToday.toLocaleString()}
             icon={<Activity className="h-4 w-4" />}
             color="chart-4"
           />
@@ -394,6 +434,15 @@ export default function DashboardPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleSync}
+            disabled={syncing || !selectedInstance}
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing…" : "Sync"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setCustomizeOpen(true)}
           >
             <Settings2 className="h-4 w-4 mr-1" />
@@ -415,6 +464,13 @@ export default function DashboardPage() {
         onOpenChange={setCustomizeOpen}
         preferences={preferences}
         onSave={savePreferences}
+      />
+
+      <SyncDialog
+        open={syncDialogOpen}
+        onOpenChange={setSyncDialogOpen}
+        syncing={syncing}
+        syncResult={syncResult}
       />
     </div>
   );

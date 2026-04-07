@@ -1,80 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import * as d3 from "d3";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface TopEntity {
+  id?: string;
   entityId: string;
   friendlyName: string | null;
   domain: string;
   totalChanges: number;
 }
 
-export function TopEntitiesChart({ data }: { data: TopEntity[] }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  useEffect(() => {
-    if (!svgRef.current || data.length === 0) return;
-
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
-
-    const maxLabelLen = 28;
-    const truncate = (s: string) =>
-      s.length > maxLabelLen ? s.slice(0, maxLabelLen - 1) + "…" : s;
-
-    const margin = { top: 8, right: 16, bottom: 32, left: 200 };
-    const width = svgRef.current.clientWidth - margin.left - margin.right;
-    const height = data.length * 40;
-
-    const g = svg
-      .attr("width", width + margin.left + margin.right)
-      .attr("height", height + margin.top + margin.bottom)
-      .append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    const x = d3
-      .scaleLinear()
-      .domain([0, d3.max(data, (d) => d.totalChanges) ?? 1])
-      .range([0, width]);
-
-    const labels = data.map((d) => truncate(d.friendlyName || d.entityId));
-
-    const y = d3
-      .scaleBand()
-      .domain(labels)
-      .range([0, height])
-      .padding(0.25);
-
-    // Bars
-    g.selectAll("rect")
-      .data(data)
-      .join("rect")
-      .attr("x", 0)
-      .attr("y", (_d, i) => y(labels[i])!)
-      .attr("width", (d) => x(d.totalChanges))
-      .attr("height", y.bandwidth())
-      .attr("rx", 4)
-      .attr("class", "fill-primary/80");
-
-    // Labels on bars
-    g.selectAll(".bar-label")
-      .data(data)
-      .join("text")
-      .attr("class", "fill-primary-foreground text-xs")
-      .attr("x", (d) => Math.max(x(d.totalChanges) - 8, 4))
-      .attr("y", (_d, i) => y(labels[i])! + y.bandwidth() / 2)
-      .attr("dy", "0.35em")
-      .attr("text-anchor", (d) => (x(d.totalChanges) > 40 ? "end" : "start"))
-      .text((d) => d.totalChanges);
-
-    // Y axis
-    g.append("g")
-      .call(d3.axisLeft(y).tickSize(0).tickPadding(8))
-      .call((g) => g.select(".domain").remove())
-      .selectAll("text")
-      .attr("class", "fill-muted-foreground text-xs");
-  }, [data]);
+export function TopEntitiesChart({
+  data,
+  pageSize = 5,
+}: {
+  data: TopEntity[];
+  pageSize?: number;
+}) {
+  const [page, setPage] = useState(0);
+  const router = useRouter();
+  const totalPages = Math.max(Math.ceil(data.length / pageSize), 1);
+  const pageData = data.slice(page * pageSize, (page + 1) * pageSize);
 
   if (data.length === 0) {
     return (
@@ -85,5 +33,77 @@ export function TopEntitiesChart({ data }: { data: TopEntity[] }) {
     );
   }
 
-  return <svg ref={svgRef} className="w-full" />;
+  const maxValue = Math.max(...data.map((d) => d.totalChanges), 1);
+
+  return (
+    <div className="space-y-2">
+      {pageData.map((d) => {
+        const pct = (d.totalChanges / maxValue) * 100;
+        const label = d.friendlyName || d.entityId;
+        const row = (
+          <div key={d.entityId} className={`flex items-center gap-3${d.id ? " rounded-lg hover:bg-accent/40 transition-colors px-1 -mx-1" : ""}`}>
+            <span
+              className="text-xs text-muted-foreground truncate shrink-0 text-right"
+              style={{ width: "12rem" }}
+              title={label}
+            >
+              {label}
+            </span>
+            <div className="flex-1 flex items-center gap-2">
+              <div className="flex-1 relative h-7 rounded bg-muted overflow-hidden">
+                <div
+                  className="absolute inset-y-0 left-0 rounded bg-primary/80 transition-all"
+                  style={{ width: `${Math.max(pct, 2)}%` }}
+                />
+                {pct > 30 && (
+                  <span
+                    className="absolute inset-y-0 flex items-center text-xs font-medium tabular-nums text-primary-foreground"
+                    style={{ right: `${100 - pct + 1}%` }}
+                  >
+                    {d.totalChanges.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              {pct <= 30 && (
+                <span className="text-xs font-medium tabular-nums text-foreground shrink-0">
+                  {d.totalChanges.toLocaleString()}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+        return d.id ? (
+          <div key={d.entityId} role="link" tabIndex={0} className="cursor-pointer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/entities/${d.id}`); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); router.push(`/entities/${d.id}`); } }}>
+            {row}
+          </div>
+        ) : row;
+      })}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-xs text-muted-foreground">
+            {page * pageSize + 1}&ndash;{Math.min((page + 1) * pageSize, data.length)} of {data.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPage((p) => Math.max(0, p - 1)); }}
+              disabled={page === 0}
+              className="p-1 rounded hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPage((p) => Math.min(totalPages - 1, p + 1)); }}
+              disabled={page >= totalPages - 1}
+              className="p-1 rounded hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
