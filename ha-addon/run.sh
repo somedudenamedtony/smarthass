@@ -44,7 +44,7 @@ export ENCRYPTION_KEY
 
 # ── Initialize PostgreSQL ────────────────────────────────────
 PG_DATA="/data/postgres"
-PG_USER="smarthass"
+PG_USER="nextjs"
 PG_DB="smarthass"
 
 # Create directories and fix ownership (HA mounts /data as root)
