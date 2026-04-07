@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
   Cpu,
-  Zap,
   Brain,
   Coins,
   Settings,
@@ -24,7 +23,6 @@ const NAV_ITEMS = [
   { href: "/insights", label: "Insights", icon: Brain },
   { href: "/entities", label: "Entities", icon: Cpu },
   { href: "/entities/graph", label: "Entity Graph", icon: Share2 },
-  { href: "/automations", label: "Automations", icon: Zap },
   { href: "/ai-usage", label: "AI Usage", icon: Coins },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
