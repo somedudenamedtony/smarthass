@@ -203,6 +203,8 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
       setDeploySuccess(data.automationId);
       if (data.warnings?.length) setDeployWarnings(data.warnings);
       onStatusChange(insight.id, "applied");
+      // Auto-close dialog after brief success display
+      setTimeout(() => setDeployDialogOpen(false), 1500);
     } catch {
       setDeployError("Network error — could not reach the server");
     } finally {
