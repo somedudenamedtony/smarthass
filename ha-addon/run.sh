@@ -47,9 +47,9 @@ PG_DATA="/data/postgres"
 PG_USER="smarthass"
 PG_DB="smarthass"
 
-# Ensure correct ownership
-chown -R nextjs:nodejs /data/postgres 2>/dev/null || true
-chown -R nextjs:nodejs /run/postgresql 2>/dev/null || true
+# Create directories and fix ownership (HA mounts /data as root)
+mkdir -p "$PG_DATA" /run/postgresql
+chown -R nextjs:nodejs "$PG_DATA" /run/postgresql
 
 if [ ! -f "$PG_DATA/PG_VERSION" ]; then
   echo "[addon] Initializing PostgreSQL database..."
