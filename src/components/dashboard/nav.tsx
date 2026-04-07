@@ -12,7 +12,6 @@ import {
   Menu,
   X,
   Activity,
-  Share2,
   TrendingUp,
 } from "lucide-react";
 
@@ -20,7 +19,6 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/top-entities", label: "Top Entities", icon: TrendingUp },
   { href: "/insights", label: "Insights", icon: Brain },
-  { href: "/entities/graph", label: "Entity Graph", icon: Share2 },
   { href: "/ai-usage", label: "AI Usage", icon: Coins },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
