@@ -429,6 +429,7 @@ Output a JSON array of suggestion objects:
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "automation_gap", "automationYaml": "..." }
 
 automationYaml must be valid HA automation YAML.
+CRITICAL: Only use entity_ids that appear in the provided data. NEVER invent or assume entity_ids that are not listed. If an automation needs an entity that doesn't exist, explain what the user would need to add instead of referencing it.
 Look for: manual patterns that could be automated, automations that could be improved, common patterns not yet set up. Use hourly activity data to identify time-based automation opportunities.
 Do NOT repeat dismissed suggestions from User Feedback.
 Return 0-8 suggestions by impact. Empty array if no clear gaps.
@@ -496,7 +497,8 @@ Output a JSON array of correlation objects:
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "cross_device_correlation", "correlationDetails": { "entityPairs": [{"entityA":"...","entityB":"...","relationship":"...","strength":0-1}], "timeWindow": "...", "patternType": "sequential|simultaneous|inverse|conditional" }, "automationYaml": "..." }
 
 Find: sequential patterns (device A active at hour X then device B at hour X+1), simultaneous state changes (same hours), inverse correlations, conditional patterns, multi-device chains. Use hourly activity data to identify temporal relationships.
-automationYaml must be valid HA YAML. Do NOT repeat dismissed correlations.
+automationYaml must be valid HA YAML. CRITICAL: Only use entity_ids that appear in the provided data. NEVER invent or assume entity_ids that are not listed. If an automation needs an entity that doesn't exist, explain what the user would need to add instead of referencing it.
+Do NOT repeat dismissed correlations.
 Return 0-8 correlations by strength. Empty array if insufficient data.
 Only valid JSON, no markdown fences.`;
 
@@ -534,6 +536,7 @@ Output a JSON array of recommendations:
 - "metadata": { "entityIds": [...related existing], "confidence": 0-1, "category": "device_suggestion", "deviceRecommendation": { "suggestedDevice": "...", "deviceType": "sensor|actuator|climate|media|security|energy", "rationale": "...", "enhancedEntities": [...], "estimatedBenefit": "..." }, "automationYaml": "..." }
 
 Look for: missing sensors, incomplete rooms, energy monitoring gaps, security gaps, routine enhancement opportunities.
+CRITICAL: In automationYaml, only use entity_ids that appear in the provided data. For device recommendations that would require new hardware, describe the suggested device in the metadata but do NOT reference non-existent entity_ids in the YAML. If the automation requires an entity the user doesn't have yet, note this in the content field.
 Do NOT repeat dismissed suggestions.
 Return 0-6 recommendations by impact. Empty array if setup seems comprehensive.
 Only valid JSON, no markdown fences.`;
@@ -612,6 +615,7 @@ Return a JSON array mixing two result types:
 - "metadata": { "entityIds": [...], "confidence": 0-1, "category": "cross_device_correlation", "correlationDetails": { "entityPairs": [{"entityA":"...","entityB":"...","relationship":"...","strength":0-1}], "timeWindow":"...", "patternType":"sequential|simultaneous|inverse|conditional" }, "automationYaml": "..." }
 
 All automationYaml must be valid HA automation YAML.
+CRITICAL: Only use entity_ids that appear in the provided data. NEVER invent or assume entity_ids that are not listed. If an automation needs an entity that doesn't exist, explain what the user would need to add instead of referencing it.
 Find: manual patterns to automate, sequential/simultaneous/inverse device patterns (use hourly activity data to detect temporal sequences), multi-device chains, improvements to existing automations.
 Do NOT repeat dismissed suggestions.
 Return 4-12 results total (mix of both types). Empty array if no opportunities.

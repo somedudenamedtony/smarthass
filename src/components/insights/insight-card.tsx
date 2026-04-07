@@ -109,12 +109,61 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
   const [deployError, setDeployError] = useState<string | null>(null);
   const [deployWarnings, setDeployWarnings] = useState<string[]>([]);
   const [deploySuccess, setDeploySuccess] = useState<string | null>(null);
+  const [preValidation, setPreValidation] = useState<{ missing: string[]; loading: boolean }>({ missing: [], loading: false });
   const config = TYPE_CONFIG[insight.type];
   const Icon = config.icon;
   const meta = insight.metadata;
 
   const isDeployed = !!meta?.deployedAutomationId;
   const hasYaml = !!meta?.automationYaml;
+
+  // Extract entity_id references from YAML text (lightweight client-side check)
+  function extractEntityIdsFromYaml(yaml: string): string[] {
+    const ids = new Set<string>();
+    // Match entity_id patterns: word.word (e.g., sensor.kitchen_temp)
+    const regex = /\b([a-z_]+\.[a-z0-9_]+)\b/g;
+    const knownDomains = new Set([
+      "alarm_control_panel", "automation", "binary_sensor", "button", "calendar",
+      "camera", "climate", "cover", "device_tracker", "fan", "group",
+      "humidifier", "input_boolean", "input_button", "input_datetime",
+      "input_number", "input_select", "input_text", "light", "lock",
+      "media_player", "notify", "number", "person", "remote", "scene",
+      "script", "select", "sensor", "siren", "sun", "switch", "timer",
+      "update", "vacuum", "water_heater", "weather", "zone",
+    ]);
+    let match;
+    while ((match = regex.exec(yaml)) !== null) {
+      const [domain] = match[1].split(".");
+      if (knownDomains.has(domain)) {
+        ids.add(match[1]);
+      }
+    }
+    return [...ids];
+  }
+
+  // Pre-validate YAML entity references against HA states
+  async function preValidateYaml(yaml: string) {
+    setPreValidation({ missing: [], loading: true });
+    try {
+      const entityIds = extractEntityIdsFromYaml(yaml);
+      if (entityIds.length === 0) {
+        setPreValidation({ missing: [], loading: false });
+        return;
+      }
+      // Fetch current HA states (entity list)
+      const res = await fetch(`/api/ha/states?instanceId=${insight.instanceId}`);
+      if (!res.ok) {
+        setPreValidation({ missing: [], loading: false });
+        return;
+      }
+      const states: { entity_id: string }[] = await res.json();
+      const known = new Set(states.map((s) => s.entity_id));
+      const missing = entityIds.filter((id) => !known.has(id));
+      setPreValidation({ missing, loading: false });
+    } catch {
+      setPreValidation({ missing: [], loading: false });
+    }
+  }
 
   async function handleDeploy() {
     setDeploying(true);
@@ -361,7 +410,9 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
                 setDeployError(null);
                 setDeployWarnings([]);
                 setDeploySuccess(null);
+                setPreValidation({ missing: [], loading: false });
                 setDeployDialogOpen(true);
+                preValidateYaml(meta!.automationYaml!);
               }}
             >
               <Rocket className="h-3 w-3 mr-1" /> Deploy to HA
@@ -429,6 +480,31 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
                   onChange={(e) => setEditableYaml(e.target.value)}
                 />
               </div>
+
+              {preValidation.loading && (
+                <p className="text-xs text-muted-foreground">Validating entity references…</p>
+              )}
+
+              {preValidation.missing.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="font-medium text-xs mb-1">
+                      {preValidation.missing.length} entity{preValidation.missing.length > 1 ? " IDs" : " ID"} not found on your HA instance:
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {preValidation.missing.map((eid) => (
+                        <Badge key={eid} variant="outline" className="text-[10px] font-mono border-destructive/30 text-destructive">
+                          {eid}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-[11px] mt-1.5 text-muted-foreground">
+                      Remove or replace these before deploying. Deployment will fail if invalid entities remain.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {deployError && (
                 <Alert variant="destructive">
