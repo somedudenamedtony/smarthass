@@ -2,8 +2,11 @@ import { Separator } from "@/components/ui/separator";
 import { HAInstances } from "@/components/settings/ha-instances";
 import { AnalysisSettings } from "@/components/settings/analysis-settings";
 import { ApiKeySettings } from "@/components/settings/api-key-settings";
+import { isHomeAssistant } from "@/lib/config";
 
 export default function SettingsPage() {
+  const haMode = isHomeAssistant();
+
   return (
     <div className="max-w-3xl space-y-8 animate-fade-up">
       <div>
@@ -14,8 +17,12 @@ export default function SettingsPage() {
       </div>
       <Separator />
       <HAInstances />
-      <Separator />
-      <ApiKeySettings />
+      {!haMode && (
+        <>
+          <Separator />
+          <ApiKeySettings />
+        </>
+      )}
       <Separator />
       <AnalysisSettings />
     </div>

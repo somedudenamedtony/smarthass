@@ -5,10 +5,10 @@ set -eo pipefail
 OPTIONS_FILE="/data/options.json"
 if [ -f "$OPTIONS_FILE" ]; then
   echo "[addon] Reading configuration from $OPTIONS_FILE"
-  ANTHROPIC_API_KEY=$(cat "$OPTIONS_FILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('anthropic_api_key',''))" 2>/dev/null || echo "")
-  LOG_LEVEL=$(cat "$OPTIONS_FILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('log_level','info'))" 2>/dev/null || echo "info")
-  SYNC_CRON=$(cat "$OPTIONS_FILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('sync_cron_schedule','0 3 * * *'))" 2>/dev/null || echo "0 3 * * *")
-  ANALYSIS_CRON=$(cat "$OPTIONS_FILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('analysis_cron_schedule','0 4 * * 0'))" 2>/dev/null || echo "0 4 * * 0")
+  ANTHROPIC_API_KEY=$(node -e "try{const o=JSON.parse(require('fs').readFileSync('$OPTIONS_FILE','utf8'));console.log(o.anthropic_api_key||'')}catch(e){console.log('')}")
+  LOG_LEVEL=$(node -e "try{const o=JSON.parse(require('fs').readFileSync('$OPTIONS_FILE','utf8'));console.log(o.log_level||'info')}catch(e){console.log('info')}")
+  SYNC_CRON=$(node -e "try{const o=JSON.parse(require('fs').readFileSync('$OPTIONS_FILE','utf8'));console.log(o.sync_cron_schedule||'0 3 * * *')}catch(e){console.log('0 3 * * *')}")
+  ANALYSIS_CRON=$(node -e "try{const o=JSON.parse(require('fs').readFileSync('$OPTIONS_FILE','utf8'));console.log(o.analysis_cron_schedule||'0 4 * * 0')}catch(e){console.log('0 4 * * 0')}")
 else
   echo "[addon] No options file found, using defaults"
   ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
@@ -155,8 +155,33 @@ if [ "$READY" = "true" ]; then
     echo "[addon] Setup result: $SETUP_RESULT"
   else
     echo "[addon] Setup already complete"
+    # Update API key from add-on config (user may have changed it)
+    if [ -n "$ANTHROPIC_API_KEY" ]; then
+      echo "[addon] Updating API key from add-on config..."
+      curl -s -X PUT http://localhost:3000/api/settings/api-keys \
+        -H "Content-Type: application/json" \
+        -d "{\"anthropicKey\":\"$ANTHROPIC_API_KEY\"}" > /dev/null 2>&1 || true
+    fi
+    # Trigger a sync on restart (data may be stale)
+    echo "[addon] Triggering sync..."
+    curl -s -X POST http://localhost:3000/api/cron/daily-sync \
+      -H "x-cron-secret: internal" > /dev/null 2>&1 &
   fi
 fi
+
+# ── Periodic Sync (background cron loop) ─────────────────────
+# Since the standalone server doesn't include the custom server.ts scheduler,
+# use a background shell loop to trigger syncs on the configured cron schedule.
+(
+  echo "[addon] Starting periodic sync loop (schedule: $SYNC_CRON)"
+  while true; do
+    # Default sync every 3 hours (more frequent than daily for fresh data)
+    sleep 10800
+    echo "[addon] Running periodic sync..."
+    curl -s -X POST http://localhost:3000/api/cron/daily-sync \
+      -H "x-cron-secret: internal" > /dev/null 2>&1 || true
+  done
+) &
 
 echo "[addon] ════════════════════════════════════════════════"
 echo "[addon] SmartHass is running on port 3000"
