@@ -9,11 +9,17 @@ const nextConfig: NextConfig = {
   assetPrefix: isHA ? "." : undefined,
   async rewrites() {
     if (isHA) {
-      // Serve /dashboard content at / so no redirect is needed.
-      // Server-side redirects use absolute paths which break HA Ingress.
-      return [{ source: "/", destination: "/dashboard" }];
+      // beforeFiles rewrites run BEFORE page matching.
+      // Without this, src/app/page.tsx matches "/" first and its
+      // redirect("/dashboard") sends an absolute Location header
+      // that the browser resolves outside the Ingress proxy → 404.
+      return {
+        beforeFiles: [{ source: "/", destination: "/dashboard" }],
+        afterFiles: [],
+        fallback: [],
+      };
     }
-    return [];
+    return { beforeFiles: [], afterFiles: [], fallback: [] };
   },
 };
 
