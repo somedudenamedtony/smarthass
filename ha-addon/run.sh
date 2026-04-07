@@ -173,10 +173,9 @@ fi
 # Since the standalone server doesn't include the custom server.ts scheduler,
 # use a background shell loop to trigger syncs on the configured cron schedule.
 (
-  echo "[addon] Starting periodic sync loop (schedule: $SYNC_CRON)"
+  echo "[addon] Starting periodic sync loop (every 5 minutes)"
   while true; do
-    # Default sync every 3 hours (more frequent than daily for fresh data)
-    sleep 10800
+    sleep 300
     echo "[addon] Running periodic sync..."
     curl -s -X POST http://localhost:3000/api/cron/daily-sync \
       -H "x-cron-secret: internal" > /dev/null 2>&1 || true

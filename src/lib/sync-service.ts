@@ -207,24 +207,40 @@ export async function computeDailyStats(
   const endOfDay = new Date(yesterday);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const dateStr = yesterday.toISOString().split("T")[0];
+  // If the end-of-day is in the future (install happened today),
+  // use "now" as the end time and compute stats for today
+  const effectiveEnd = endOfDay > now ? now : endOfDay;
+  const effectiveStart = endOfDay > now
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+    : yesterday;
+
+  const dateStr = effectiveStart.toISOString().split("T")[0];
 
   const entityIds = trackedEntities.map((e) => e.entityId);
 
-  // Pull history for all tracked entities at once
-  let historyData: HAState[][];
-  try {
-    historyData = await client.getHistory(
-      yesterday.toISOString(),
-      entityIds,
-      endOfDay.toISOString()
-    );
-  } catch {
-    console.error(
-      `[daily-stats] Failed to fetch history for instance ${instanceId}`
-    );
-    return 0;
+  // Fetch history in batches to avoid URL length limits
+  const BATCH_SIZE = 50;
+  let historyData: HAState[][] = [];
+
+  for (let i = 0; i < entityIds.length; i += BATCH_SIZE) {
+    const batch = entityIds.slice(i, i + BATCH_SIZE);
+    try {
+      const batchHistory = await client.getHistory(
+        effectiveStart.toISOString(),
+        batch,
+        effectiveEnd.toISOString()
+      );
+      historyData = historyData.concat(batchHistory);
+    } catch (err) {
+      console.error(
+        `[daily-stats] Failed to fetch history batch ${Math.floor(i / BATCH_SIZE) + 1} for instance ${instanceId}:`,
+        err instanceof Error ? err.message : err
+      );
+      // Continue with other batches
+    }
   }
+
+  if (historyData.length === 0) return 0;
 
   let statsCount = 0;
 
@@ -253,7 +269,7 @@ export async function computeDailyStats(
       const stateStart = new Date(current.last_changed).getTime();
       const stateEnd = nextEntry
         ? new Date(nextEntry.last_changed).getTime()
-        : endOfDay.getTime();
+        : effectiveEnd.getTime();
 
       const duration = Math.max(0, Math.floor((stateEnd - stateStart) / 1000));
 

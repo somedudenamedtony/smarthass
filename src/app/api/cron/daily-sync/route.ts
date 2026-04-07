@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const useReconciliation = isHomeAssistant();
+  const useReconciliation = false; // Always run full sync — WebSocket continuous sync is not active in standalone mode
 
   try {
     console.log(`[daily-sync] Starting ${useReconciliation ? "reconciliation" : "full"} sync...`);
