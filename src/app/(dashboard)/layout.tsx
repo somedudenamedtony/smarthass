@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { MobileNav, DesktopSidebar } from "@/components/dashboard/nav";
+import { isHomeAssistant } from "@/lib/config";
 
 export default async function DashboardLayout({
   children,
@@ -8,8 +9,11 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
+
   if (!session?.user) {
-    redirect("/login");
+    // In HA mode, redirect to /setup to trigger auto-setup
+    // In standard mode, redirect to login
+    redirect(isHomeAssistant() ? "/setup" : "/login");
   }
 
   return (

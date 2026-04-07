@@ -65,7 +65,7 @@ function getProviders() {
   return providers;
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const { handlers, auth: _nextAuth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: DrizzleAdapter(db, {
     usersTable: schema.users,
@@ -78,3 +78,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     strategy: isSelfHosted() ? "jwt" : "database",
   },
 });
+
+/**
+ * Wrapped auth() that returns a valid session in HA add-on mode
+ * by looking up the admin user from the database.
+ * All other modes delegate to NextAuth normally.
+ */
+async function auth() {
+  if (isHomeAssistant()) {
+    const [user] = await db
+      .select({
+        id: schema.users.id,
+        name: schema.users.name,
+        email: schema.users.email,
+      })
+      .from(schema.users)
+      .limit(1);
+
+    if (user) {
+      return {
+        user: {
+          id: user.id,
+          name: user.name ?? undefined,
+          email: user.email ?? undefined,
+        },
+        expires: new Date(
+          Date.now() + 365 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+      };
+    }
+    return null;
+  }
+  return _nextAuth();
+}
+
+export { handlers, auth, signIn, signOut };
