@@ -9,7 +9,7 @@ WORKDIR /app
 ARG SMARTHASS_REPO=https://github.com/somedudenamedtony/smarthass.git
 ARG SMARTHASS_REF=main
 # Version tag forces Docker to invalidate cache and re-clone on each release
-RUN echo "SmartHass v1.0.8" && git clone --depth=1 --branch=${SMARTHASS_REF} ${SMARTHASS_REPO} .
+RUN echo "SmartHass v1.0.9" && git clone --depth=1 --branch=${SMARTHASS_REF} ${SMARTHASS_REPO} .
 
 RUN npm ci
 
@@ -36,7 +36,7 @@ ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 
 # Install PostgreSQL 16
-RUN apk add --no-cache postgresql16 postgresql16-contrib su-exec bash
+RUN apk add --no-cache postgresql16 postgresql16-contrib su-exec bash curl
 
 # Create app user
 RUN addgroup --system --gid 1001 nodejs && \

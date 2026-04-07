@@ -104,12 +104,10 @@ echo "[addon] Starting SmartHass..."
 # Graceful shutdown handler
 cleanup() {
   echo "[addon] Shutting down..."
-  # Send SIGTERM to the Node.js process (handled by server.ts)
   if [ -n "$APP_PID" ]; then
     kill -TERM "$APP_PID" 2>/dev/null
     wait "$APP_PID" 2>/dev/null
   fi
-  # Stop PostgreSQL
   echo "[addon] Stopping PostgreSQL..."
   su-exec nextjs pg_ctl -D "$PG_DATA" -m fast stop 2>/dev/null
   echo "[addon] Shutdown complete"
@@ -122,7 +120,49 @@ cd /app
 su-exec nextjs node server.js &
 APP_PID=$!
 
-echo "[addon] SmartHass is running (PID: $APP_PID)"
+echo "[addon] SmartHass started (PID: $APP_PID)"
+
+# ── Wait for app to be ready ─────────────────────────────────
+echo "[addon] Waiting for SmartHass to respond..."
+READY=false
+for i in $(seq 1 30); do
+  HEALTH=$(curl -s http://localhost:3000/api/health 2>/dev/null || echo "")
+  if echo "$HEALTH" | grep -q '"ok":true'; then
+    echo "[addon] SmartHass is responding: $HEALTH"
+    READY=true
+    break
+  fi
+  echo "[addon]   attempt $i/30 — not ready yet"
+  sleep 2
+done
+
+if [ "$READY" = "false" ]; then
+  echo "[addon] ERROR: SmartHass did not become ready in 60 seconds"
+  echo "[addon] Check the logs above for errors"
+fi
+
+# ── Auto-Setup (create admin user + register HA instance) ────
+if [ "$READY" = "true" ]; then
+  echo "[addon] Checking if setup is needed..."
+  SETUP_CHECK=$(curl -s http://localhost:3000/api/setup 2>/dev/null || echo "")
+  echo "[addon] Setup status: $SETUP_CHECK"
+
+  if echo "$SETUP_CHECK" | grep -q '"needsSetup":true'; then
+    echo "[addon] Running auto-setup..."
+    SETUP_RESULT=$(curl -s -X POST http://localhost:3000/api/setup \
+      -H "Content-Type: application/json" \
+      -d '{}' 2>/dev/null || echo "")
+    echo "[addon] Setup result: $SETUP_RESULT"
+  else
+    echo "[addon] Setup already complete"
+  fi
+fi
+
+echo "[addon] ════════════════════════════════════════════════"
+echo "[addon] SmartHass is running on port 3000"
+echo "[addon] DEPLOY_MODE=$DEPLOY_MODE"
+echo "[addon] HOSTNAME=$HOSTNAME"
+echo "[addon] ════════════════════════════════════════════════"
 
 # Wait for the app process
 wait "$APP_PID"
