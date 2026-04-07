@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
-  Cpu,
   Brain,
   Coins,
   Settings,
@@ -21,7 +20,6 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/top-entities", label: "Top Entities", icon: TrendingUp },
   { href: "/insights", label: "Insights", icon: Brain },
-  { href: "/entities", label: "Entities", icon: Cpu },
   { href: "/entities/graph", label: "Entity Graph", icon: Share2 },
   { href: "/ai-usage", label: "AI Usage", icon: Coins },
   { href: "/settings", label: "Settings", icon: Settings },
