@@ -49,7 +49,7 @@ PG_DB="smarthass"
 
 # Create directories and fix ownership (HA mounts /data as root)
 mkdir -p "$PG_DATA" /run/postgresql
-chown -R nextjs:nodejs "$PG_DATA" /run/postgresql
+chown -R nextjs:nodejs /data /run/postgresql
 
 if [ ! -f "$PG_DATA/PG_VERSION" ]; then
   echo "[addon] Initializing PostgreSQL database..."
@@ -58,7 +58,7 @@ fi
 
 # Start PostgreSQL
 echo "[addon] Starting PostgreSQL..."
-su-exec nextjs pg_ctl -D "$PG_DATA" -l /data/postgres.log -o "-k /run/postgresql" start
+su-exec nextjs pg_ctl -D "$PG_DATA" -l "$PG_DATA/postgres.log" -o "-k /run/postgresql" start
 
 # Wait for PostgreSQL to be ready
 echo "[addon] Waiting for PostgreSQL..."
@@ -67,7 +67,7 @@ until su-exec nextjs pg_isready -h /run/postgresql -q 2>/dev/null; do
   RETRIES=$((RETRIES - 1))
   if [ $RETRIES -le 0 ]; then
     echo "[addon] ERROR: PostgreSQL failed to start"
-    cat /data/postgres.log
+    cat "$PG_DATA/postgres.log"
     exit 1
   fi
   sleep 1
