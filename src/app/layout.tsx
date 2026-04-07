@@ -45,7 +45,7 @@ export default async function RootLayout({
         {safeIngressPath && (
           <script
             dangerouslySetInnerHTML={{
-              __html: `(function(){var p="${safeIngressPath}";var f=window.fetch;window.fetch=function(u,o){if(typeof u==="string"&&u.startsWith("/"))u=p+u;return f.call(this,u,o)};})();`,
+              __html: `(function(){var p="${safeIngressPath}";var f=window.fetch;window.fetch=function(u,o){if(typeof u==="string"&&u.startsWith("/"))u=p+u;return f.call(this,u,o)};document.addEventListener("click",function(e){if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||e.button!==0)return;var a=e.target.closest&&e.target.closest("a");if(!a||(a.target&&a.target!=="_self"))return;var h=a.getAttribute("href");if(h&&h.startsWith("/")&&!h.startsWith(p+"/")){e.preventDefault();window.location.href=p+h}},true)})();`,
             }}
           />
         )}
