@@ -127,14 +127,19 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
       "camera", "climate", "cover", "device_tracker", "fan", "group",
       "humidifier", "input_boolean", "input_button", "input_datetime",
       "input_number", "input_select", "input_text", "light", "lock",
-      "media_player", "notify", "number", "person", "remote", "scene",
+      "media_player", "number", "person", "remote", "scene",
       "script", "select", "sensor", "siren", "sun", "switch", "timer",
       "update", "vacuum", "water_heater", "weather", "zone",
+    ]);
+    // Service-only domains — these appear after "service:" and are not entity_ids
+    const serviceDomains = new Set([
+      "notify", "tts", "homeassistant", "persistent_notification",
+      "system_log", "logger", "recorder", "frontend",
     ]);
     let match;
     while ((match = regex.exec(yaml)) !== null) {
       const [domain] = match[1].split(".");
-      if (knownDomains.has(domain)) {
+      if (knownDomains.has(domain) && !serviceDomains.has(domain)) {
         ids.add(match[1]);
       }
     }

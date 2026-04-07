@@ -17,6 +17,8 @@ const KNOWN_TRIGGER_PLATFORMS = new Set([
 /**
  * Extract all entity_id references from an automation config object.
  */
+const SERVICE_KEYS = new Set(["service", "action"]);
+
 function extractEntityIds(obj: unknown): string[] {
   const ids: string[] = [];
   if (typeof obj === "string" && obj.includes(".") && !obj.includes(" ")) {
@@ -31,6 +33,8 @@ function extractEntityIds(obj: unknown): string[] {
     }
   } else if (obj && typeof obj === "object") {
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      // Skip service/action keys — those are service calls, not entity references
+      if (SERVICE_KEYS.has(key)) continue;
       if (key === "entity_id" || key === "entity") {
         if (typeof value === "string") ids.push(value);
         if (Array.isArray(value)) ids.push(...value.filter((v): v is string => typeof v === "string"));
