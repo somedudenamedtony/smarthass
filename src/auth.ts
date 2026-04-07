@@ -67,12 +67,19 @@ function getProviders() {
 
 const { handlers, auth: _nextAuth, signIn, signOut } = NextAuth({
   ...authConfig,
-  adapter: DrizzleAdapter(db, {
-    usersTable: schema.users,
-    accountsTable: schema.accounts,
-    sessionsTable: schema.sessions,
-    verificationTokensTable: schema.verificationTokens,
-  }),
+  // In HA mode the adapter is unused (no providers / no DB sessions).
+  // Skip it so the DrizzleAdapter never inspects the lazy-proxy db object
+  // at build time ("Unsupported database type" error).
+  ...(isHomeAssistant()
+    ? {}
+    : {
+        adapter: DrizzleAdapter(db, {
+          usersTable: schema.users,
+          accountsTable: schema.accounts,
+          sessionsTable: schema.sessions,
+          verificationTokensTable: schema.verificationTokens,
+        }),
+      }),
   providers: getProviders(),
   session: {
     strategy: isSelfHosted() ? "jwt" : "database",
