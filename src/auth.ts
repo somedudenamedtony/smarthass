@@ -93,26 +93,31 @@ const { handlers, auth: _nextAuth, signIn, signOut } = NextAuth({
  */
 async function auth() {
   if (isHomeAssistant()) {
-    const [user] = await db
-      .select({
-        id: schema.users.id,
-        name: schema.users.name,
-        email: schema.users.email,
-      })
-      .from(schema.users)
-      .limit(1);
+    try {
+      const [user] = await db
+        .select({
+          id: schema.users.id,
+          name: schema.users.name,
+          email: schema.users.email,
+        })
+        .from(schema.users)
+        .limit(1);
 
-    if (user) {
-      return {
-        user: {
-          id: user.id,
-          name: user.name ?? undefined,
-          email: user.email ?? undefined,
-        },
-        expires: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      };
+      if (user) {
+        return {
+          user: {
+            id: user.id,
+            name: user.name ?? undefined,
+            email: user.email ?? undefined,
+          },
+          expires: new Date(
+            Date.now() + 365 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+        };
+      }
+    } catch {
+      // DB not available (e.g. build-time static page generation) — return null
+      // so the dashboard layout redirects to /setup gracefully
     }
     return null;
   }

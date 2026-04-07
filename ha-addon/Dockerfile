@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Clone the full project source (HA Supervisor build context is ha-addon/ only)
 # CACHE_BUST: bump with config.yaml version to force re-clone
-ARG CACHE_BUST=1.0.6
+ARG CACHE_BUST=1.0.7
 ARG SMARTHASS_REPO=https://github.com/somedudenamedtony/smarthass.git
 ARG SMARTHASS_REF=main
 RUN git clone --depth=1 --branch=${SMARTHASS_REF} ${SMARTHASS_REPO} .
