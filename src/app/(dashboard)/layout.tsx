@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { MobileNav, DesktopSidebar } from "@/components/dashboard/nav";
 import { isHomeAssistant } from "@/lib/config";
 
+// Prevent static prerendering — auth() depends on a live database at runtime
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
   children,
 }: {
