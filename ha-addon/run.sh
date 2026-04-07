@@ -82,9 +82,13 @@ export DATABASE_URL="postgresql://$PG_USER:@localhost:5432/$PG_DB?host=/run/post
 # ── Run Database Migrations ──────────────────────────────────
 echo "[addon] Running database migrations..."
 cd /app
-su-exec nextjs npx drizzle-kit migrate 2>&1 || {
-  echo "[addon] WARNING: Migrations may have failed, continuing anyway..."
-}
+for migration in migrations/*.sql; do
+  if [ -f "$migration" ]; then
+    echo "[addon]   Applying $(basename "$migration")..."
+    su-exec nextjs psql -h /run/postgresql -d "$PG_DB" -f "$migration" 2>&1 || true
+  fi
+done
+echo "[addon] Migrations complete"
 
 # ── Supervisor Token ─────────────────────────────────────────
 # SUPERVISOR_TOKEN is automatically injected by HA Supervisor
@@ -114,6 +118,7 @@ cleanup() {
 trap cleanup SIGTERM SIGINT
 
 # Start the application
+cd /app
 su-exec nextjs node server.js &
 APP_PID=$!
 
