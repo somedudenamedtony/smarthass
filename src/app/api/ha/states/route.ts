@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const client = new HAClient(instance[0].url, instance[0].encryptedToken);
+    const client = HAClient.forInstance(instance[0].url, instance[0].encryptedToken);
 
     if (entityId) {
       const state = await client.getState(entityId);

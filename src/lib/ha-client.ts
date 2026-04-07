@@ -84,6 +84,18 @@ export class HAClient {
     return client;
   }
 
+  /**
+   * Create the appropriate HAClient for an instance.
+   * In HA add-on mode, always uses the fresh Supervisor token (it rotates on restart).
+   * In other modes, decrypts the stored token.
+   */
+  static forInstance(url: string, encryptedToken: string, timeoutMs: number = DEFAULT_TIMEOUT_MS): HAClient {
+    if (process.env.DEPLOY_MODE === "home-assistant" && process.env.SUPERVISOR_TOKEN) {
+      return HAClient.fromSupervisor(timeoutMs);
+    }
+    return new HAClient(url, encryptedToken, timeoutMs);
+  }
+
   private async request<T>(
     path: string,
     options: RequestInit = {}

@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     .returning();
 
   try {
-    const client = new HAClient(instance[0].url, instance[0].encryptedToken);
+    const client = HAClient.forInstance(instance[0].url, instance[0].encryptedToken);
     const result = await fullSync(instanceId, client);
 
     await db

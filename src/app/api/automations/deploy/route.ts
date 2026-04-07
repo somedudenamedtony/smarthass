@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Step 2: Validate against live HA instance
-  const client = new HAClient(instance.url, instance.encryptedToken);
+  const client = HAClient.forInstance(instance.url, instance.encryptedToken);
 
   let haValidation: { errors: string[]; warnings: string[] };
   try {
@@ -267,7 +267,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Delete from HA
-  const client = new HAClient(instance.url, instance.encryptedToken);
+  const client = HAClient.forInstance(instance.url, instance.encryptedToken);
   try {
     await client.deleteAutomation(meta.deployedAutomationId);
     await client.reloadAutomations();

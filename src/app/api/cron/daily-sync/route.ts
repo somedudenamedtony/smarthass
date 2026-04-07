@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
           startedAt: new Date(),
         });
 
-        const client = new HAClient(instance.url, instance.encryptedToken);
+        const client = HAClient.forInstance(instance.url, instance.encryptedToken);
 
         let metadata: Record<string, unknown>;
 
