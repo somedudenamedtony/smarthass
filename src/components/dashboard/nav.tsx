@@ -97,15 +97,15 @@ export function DesktopSidebar({ email }: { email: string | null }) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex w-64 border-r border-border/50 bg-sidebar p-6 flex-col gap-6 relative overflow-hidden">
+    <aside className="hidden md:flex w-48 border-r border-border/50 bg-sidebar p-3 flex-col gap-3 relative overflow-hidden">
       {/* Subtle gradient glow at top */}
       <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
 
-      <Link href="/dashboard" className="flex items-center gap-3 relative z-10">
-        <div className="h-9 w-9 rounded-xl bg-primary/15 flex items-center justify-center glow-sm">
-          <Activity className="h-5 w-5 text-primary" />
+      <Link href="/dashboard" className="flex items-center gap-2 relative z-10">
+        <div className="h-8 w-8 rounded-lg bg-primary/15 flex items-center justify-center glow-sm">
+          <Activity className="h-4 w-4 text-primary" />
         </div>
-        <span className="text-xl font-bold text-gradient">SmartHass</span>
+        <span className="text-lg font-bold text-gradient">SmartHass</span>
       </Link>
 
       <nav className="flex flex-col gap-1 relative z-10">
@@ -120,7 +120,7 @@ export function DesktopSidebar({ email }: { email: string | null }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+              className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-all duration-200 ${
                 active
                   ? "bg-primary/15 text-primary glow-sm"
                   : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
@@ -137,8 +137,8 @@ export function DesktopSidebar({ email }: { email: string | null }) {
       </nav>
 
       <div className="mt-auto relative z-10">
-        <div className="rounded-lg bg-accent/30 px-3 py-2">
-          <p className="text-xs text-muted-foreground truncate">{email}</p>
+        <div className="rounded-md bg-accent/30 px-2 py-1.5">
+          <p className="text-[11px] text-muted-foreground truncate">{email}</p>
         </div>
       </div>
     </aside>

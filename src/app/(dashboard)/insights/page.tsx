@@ -205,7 +205,7 @@ export default function InsightsPage() {
   if (instances.length === 0) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight text-gradient">AI Insights</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">AI Insights</h1>
         <Card className="border-dashed border-2">
           <CardContent className="py-16 text-center">
             <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
@@ -220,11 +220,11 @@ export default function InsightsPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-4 animate-fade-up">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gradient">AI Insights</h1>
+          <h1 className="text-xl font-bold tracking-tight text-gradient">AI Insights</h1>
           <p className="text-sm text-muted-foreground">
             AI-powered analysis of your smart home
             {newCount > 0 && (

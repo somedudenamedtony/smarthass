@@ -165,7 +165,7 @@ export default function EntityGraphPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gradient">
+          <h1 className="text-xl font-bold tracking-tight text-gradient">
             Entity Relationship Graph
           </h1>
           <p className="text-sm text-muted-foreground">

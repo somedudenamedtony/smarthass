@@ -182,18 +182,18 @@ export default function TopEntitiesPage() {
   });
 
   return (
-    <div className="space-y-6 animate-fade-up">
-      <div className="flex items-center gap-4">
+    <div className="space-y-4 animate-fade-up">
+      <div className="flex items-center gap-3">
         <Link href="/dashboard">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" /> Dashboard
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gradient">
+          <h1 className="text-xl font-bold tracking-tight text-gradient">
             Most Active Entities
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             All tracked entities ranked by state changes
           </p>
         </div>
@@ -305,21 +305,21 @@ export default function TopEntitiesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filtered.map((entity, i) => (
             <Card
               key={entity.entityId}
               className="overflow-hidden transition-colors hover:border-primary/30 cursor-pointer"
               onClick={() => openDetail(entity)}
             >
-              <div className="flex items-start gap-4 p-4">
+              <div className="flex items-start gap-3 p-3">
                 {/* Rank */}
-                <div className="flex-shrink-0 h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
                   {i + 1}
                 </div>
 
                 {/* Main info */}
-                <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h3 className="font-medium truncate">
@@ -344,7 +344,7 @@ export default function TopEntitiesPage() {
                   </div>
 
                   {/* Stats row */}
-                  <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <Activity className="h-3.5 w-3.5 text-primary" />
                       <span className="font-medium text-foreground">

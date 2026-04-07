@@ -76,7 +76,7 @@ export default function AutomationsPage() {
   if (instances.length === 0 && !loading) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight text-gradient">Automations</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">Automations</h1>
         <Card className="border-dashed border-2">
           <CardContent className="py-16 text-center">
             <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
@@ -91,9 +91,9 @@ export default function AutomationsPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-4 animate-fade-up">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-gradient">Automations</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">Automations</h1>
         {instances.length > 1 && (
           <select
             className="rounded-lg border border-border/50 bg-card px-3 py-1.5 text-sm"

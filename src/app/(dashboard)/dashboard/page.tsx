@@ -214,7 +214,7 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight text-gradient">Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">Dashboard</h1>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
@@ -229,7 +229,7 @@ export default function DashboardPage() {
   if (instances.length === 0) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight text-gradient">Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">Dashboard</h1>
         <Card className="border-dashed border-2">
           <CardContent className="py-16 text-center">
             <Cpu className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
@@ -255,12 +255,12 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
             <div className="flex items-center gap-3">
               {data.instance.status === "connected" ? (
-                <div className="h-10 w-10 rounded-xl bg-primary/15 flex items-center justify-center glow-sm">
-                  <Wifi className="h-5 w-5 text-primary" />
+                <div className="h-8 w-8 rounded-lg bg-primary/15 flex items-center justify-center glow-sm">
+                  <Wifi className="h-4 w-4 text-primary" />
                 </div>
               ) : (
-                <div className="h-10 w-10 rounded-xl bg-destructive/15 flex items-center justify-center glow-destructive">
-                  <WifiOff className="h-5 w-5 text-destructive" />
+                <div className="h-8 w-8 rounded-lg bg-destructive/15 flex items-center justify-center glow-destructive">
+                  <WifiOff className="h-4 w-4 text-destructive" />
                 </div>
               )}
               <div>
@@ -291,7 +291,7 @@ export default function DashboardPage() {
 
     "key-metrics": () =>
       data && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label="Total Entities"
             value={data.metrics.totalEntities}
@@ -324,7 +324,7 @@ export default function DashboardPage() {
 
     charts: () =>
       data && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           <Link href="/dashboard/top-entities">
             <Card className="overflow-hidden cursor-pointer transition-colors hover:border-primary/40">
               <CardHeader>
@@ -380,7 +380,7 @@ export default function DashboardPage() {
                 {data.recentChanges.map((e, i) => (
                   <div
                     key={e.entityId}
-                    className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors hover:bg-accent/30"
+                    className="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent/30"
                     style={{ animationDelay: `${i * 50}ms` }}
                   >
                     <div className="flex items-center gap-3">
@@ -414,9 +414,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-4 animate-fade-up">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-gradient">Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">Dashboard</h1>
         <div className="flex items-center gap-2">
           {instances.length > 1 && (
             <select
@@ -507,7 +507,7 @@ function MetricCard({
         </div>
       </CardHeader>
       <CardContent className="relative">
-        <p className="text-2xl font-bold tracking-tight">{value}</p>
+        <p className="text-xl font-bold tracking-tight">{value}</p>
       </CardContent>
     </Card>
   );

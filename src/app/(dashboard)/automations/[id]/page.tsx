@@ -76,7 +76,7 @@ export default function AutomationDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-xl font-bold tracking-tight">
             {automation.alias || automation.haAutomationId}
           </h1>
           {automation.description && (

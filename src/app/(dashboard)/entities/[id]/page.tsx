@@ -197,7 +197,7 @@ export default function EntityDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-xl font-bold tracking-tight">
             {entity.friendlyName || entity.entityId}
           </h1>
           <p className="text-sm text-muted-foreground font-mono">

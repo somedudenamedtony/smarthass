@@ -195,7 +195,7 @@ export default function AIUsagePage() {
   if (error) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight text-gradient">AI Usage</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">AI Usage</h1>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
@@ -221,10 +221,10 @@ export default function AIUsagePage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-4 animate-fade-up">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gradient">
+          <h1 className="text-xl font-bold tracking-tight text-gradient">
             AI Usage
           </h1>
           <p className="text-muted-foreground">
