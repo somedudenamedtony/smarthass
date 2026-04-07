@@ -15,6 +15,10 @@ RUN npm ci
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DEPLOY_MODE=home-assistant
 
+# Dummy DATABASE_URL for build — Next.js static page collection imports db module
+# The lazy proxy in db/index.ts prevents actual connections at build time
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+
 RUN npm run build
 
 # ── Production stage ─────────────────────────────────────────

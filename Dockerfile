@@ -11,6 +11,9 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DEPLOY_MODE=self-hosted
 
+# Dummy DATABASE_URL for build — prevents db module from throwing at import time
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+
 RUN npm run build
 
 # ── Production stage ─────────────────────────────────────────

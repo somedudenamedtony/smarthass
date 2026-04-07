@@ -20,4 +20,16 @@ function createDb() {
   return drizzlePg(pool, { schema });
 }
 
-export const db = createDb();
+// Lazy singleton — avoids crashing during Next.js build-time static page collection
+// when DATABASE_URL is not yet available.
+let _db: ReturnType<typeof createDb> | undefined;
+
+export const db = new Proxy({} as ReturnType<typeof createDb>, {
+  get(_target, prop, receiver) {
+    if (!_db) {
+      _db = createDb();
+    }
+    const value = Reflect.get(_db, prop, receiver);
+    return typeof value === "function" ? value.bind(_db) : value;
+  },
+});
