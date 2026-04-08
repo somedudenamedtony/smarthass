@@ -5,20 +5,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard,
+  Sparkles,
   Brain,
+  Zap,
+  Activity,
   Coins,
   Settings,
   Menu,
   X,
-  Activity,
-  TrendingUp,
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/top-entities", label: "Top Entities", icon: TrendingUp },
-  { href: "/insights", label: "Insights", icon: Brain },
+  { href: "/dashboard", label: "Home", icon: Sparkles },
+  { href: "/insights", label: "All Insights", icon: Brain },
+  { href: "/automations", label: "Automations", icon: Zap },
+  { href: "/entities", label: "Entities", icon: Activity },
   { href: "/ai-usage", label: "AI Usage", icon: Coins },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -58,10 +59,10 @@ export function MobileNav() {
             <div className="flex flex-col gap-1">
               {NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
-                const active = item.href === "/entities"
-                  ? pathname === "/entities" || (pathname.startsWith("/entities/") && !pathname.startsWith("/entities/graph"))
-                  : item.href === "/dashboard"
-                    ? pathname === "/dashboard"
+                const active = item.href === "/dashboard"
+                  ? pathname === "/dashboard" || pathname.startsWith("/dashboard/")
+                  : item.href === "/entities"
+                    ? pathname === "/entities" || pathname.startsWith("/entities/")
                     : pathname.startsWith(item.href);
                 return (
                   <Link
@@ -105,10 +106,10 @@ export function DesktopSidebar({ email }: { email: string | null }) {
       <nav className="flex flex-col gap-1 relative z-10">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const active = item.href === "/entities"
-            ? pathname === "/entities" || (pathname.startsWith("/entities/") && !pathname.startsWith("/entities/graph"))
-            : item.href === "/dashboard"
-              ? pathname === "/dashboard"
+          const active = item.href === "/dashboard"
+            ? pathname === "/dashboard" || pathname.startsWith("/dashboard/")
+            : item.href === "/entities"
+              ? pathname === "/entities" || pathname.startsWith("/entities/")
               : pathname.startsWith(item.href);
           return (
             <Link
