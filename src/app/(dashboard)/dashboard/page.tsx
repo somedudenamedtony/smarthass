@@ -14,13 +14,31 @@ import { Button } from "@/components/ui/button";
 import { TopEntitiesChart } from "@/components/charts/top-entities-chart";
 import { DomainDistributionChart } from "@/components/charts/domain-distribution";
 import { CustomizePanel } from "@/components/dashboard/customize-panel";
+import { InsightCard, type Insight } from "@/components/insights/insight-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  Brain,
+  CheckCircle2,
   Cpu,
-  Zap,
   Eye,
+  GitBranch,
+  Lightbulb,
+  Loader2,
+  Sparkles,
   TrendingUp,
+  XCircle,
+  Zap,
   Settings2,
   Wifi,
   WifiOff,
@@ -75,6 +93,7 @@ interface DashboardPreferences {
 }
 
 const DEFAULT_WIDGET_ORDER = [
+  "insights-overview",
   "instance-health",
   "key-metrics",
   "charts",
@@ -82,10 +101,20 @@ const DEFAULT_WIDGET_ORDER = [
 ];
 
 export const WIDGET_LABELS: Record<string, string> = {
+  "insights-overview": "AI Insights",
   "instance-health": "Instance Health",
   "key-metrics": "Key Metrics",
   "charts": "Charts",
   "recent-activity": "Recent Activity",
+};
+
+const analysisCategoryLabels: Record<string, string> = {
+  usage_patterns: "Usage Patterns",
+  anomaly_detection: "Anomaly Detection",
+  automation_gaps: "Automation Gaps",
+  efficiency: "Efficiency",
+  cross_device_correlation: "Cross-Device Correlation",
+  device_suggestions: "Device Suggestions",
 };
 
 export default function DashboardPage() {
@@ -100,6 +129,22 @@ export default function DashboardPage() {
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const { toast } = useToast();
+
+  // Insights state
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [insightCounts, setInsightCounts] = useState<Record<string, number>>({});
+  const [newInsightCount, setNewInsightCount] = useState(0);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+
+  // Analysis state
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<{
+    success: boolean;
+    totalInsights?: number;
+    results?: Record<string, number>;
+    error?: string;
+  } | null>(null);
 
   // Load preferences
   useEffect(() => {
@@ -118,6 +163,7 @@ export default function DashboardPage() {
           setSelectedInstance(list[0].id);
         } else {
           setLoading(false);
+          setInsightsLoading(false);
         }
       });
   }, []);
@@ -141,11 +187,29 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const loadInsights = useCallback(async () => {
+    if (!selectedInstance) return;
+    setInsightsLoading(true);
+    try {
+      const res = await fetch(`/api/insights?instanceId=${selectedInstance}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInsights(data.insights ?? []);
+        setInsightCounts(data.counts ?? {});
+        setNewInsightCount(data.newCount ?? 0);
+      }
+    } catch {
+      // Insights are non-critical
+    }
+    setInsightsLoading(false);
+  }, [selectedInstance]);
+
   useEffect(() => {
     if (selectedInstance) {
       loadDashboard(selectedInstance);
+      loadInsights();
     }
-  }, [selectedInstance, loadDashboard]);
+  }, [selectedInstance, loadDashboard, loadInsights]);
 
   const handleSync = useCallback(async () => {
     if (!selectedInstance || syncing) return;
@@ -177,6 +241,52 @@ export default function DashboardPage() {
     }
   }, [selectedInstance, syncing, loadDashboard]);
 
+  async function analyzeNow() {
+    if (!selectedInstance) return;
+    setAnalyzing(true);
+    setAnalysisResult(null);
+    setAnalysisDialogOpen(true);
+    try {
+      const res = await fetch("/api/analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instanceId: selectedInstance }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAnalysisResult({ success: true, totalInsights: data.totalInsights, results: data.results });
+        await loadInsights();
+      } else {
+        setAnalysisResult({ success: false, error: data.error || "Analysis failed" });
+      }
+    } catch {
+      setAnalysisResult({ success: false, error: "Network error. Please try again." });
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function handleInsightStatusChange(id: string, status: Insight["status"]) {
+    try {
+      const res = await fetch("/api/insights", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      if (res.ok) {
+        setInsights((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
+        if (status === "viewed" || status === "dismissed") {
+          setNewInsightCount((prev) => Math.max(0, prev - 1));
+        }
+        toast("success", status === "dismissed" ? "Insight dismissed" : "Insight updated");
+      } else {
+        toast("error", "Failed to update insight status");
+      }
+    } catch {
+      toast("error", "Network error. Please try again.");
+    }
+  }
+
   const savePreferences = useCallback(async (prefs: DashboardPreferences) => {
     setPreferences(prefs);
     try {
@@ -197,8 +307,9 @@ export default function DashboardPage() {
 
   const widgetOrder = preferences.widgetOrder ?? DEFAULT_WIDGET_ORDER;
   const hiddenWidgets = new Set(preferences.hiddenWidgets ?? []);
+  const totalInsights = Object.values(insightCounts).reduce((a, b) => a + b, 0);
 
-  if (loading) {
+  if (loading && insightsLoading) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-8 w-48 bg-muted rounded" />
@@ -211,10 +322,10 @@ export default function DashboardPage() {
     );
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h1 className="text-xl font-bold tracking-tight text-gradient">Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">SmartHass</h1>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
@@ -229,10 +340,10 @@ export default function DashboardPage() {
   if (instances.length === 0) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h1 className="text-xl font-bold tracking-tight text-gradient">Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gradient">SmartHass</h1>
         <Card className="border-dashed border-2">
           <CardContent className="py-16 text-center">
-            <Cpu className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+            <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
             <p className="text-muted-foreground">
               No Home Assistant instances connected.{" "}
               <a href="/settings" className="text-primary hover:underline">
@@ -248,6 +359,54 @@ export default function DashboardPage() {
 
   // Widget renderers
   const widgets: Record<string, () => React.ReactNode> = {
+    "insights-overview": () => (
+      <div className="space-y-4">
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+          <InsightSummaryCard label="Total" value={totalInsights} icon={<Brain className="h-4 w-4" />} color="primary" />
+          <InsightSummaryCard label="Patterns" value={insightCounts.insight ?? 0} icon={<Lightbulb className="h-4 w-4" />} color="chart-4" />
+          <InsightSummaryCard label="Anomalies" value={insightCounts.anomaly ?? 0} icon={<AlertTriangle className="h-4 w-4" />} color="destructive" />
+          <InsightSummaryCard label="Automations" value={(insightCounts.automation ?? 0) + (insightCounts.suggestion ?? 0)} icon={<Zap className="h-4 w-4" />} color="chart-2" />
+          <InsightSummaryCard label="Correlations" value={insightCounts.correlation ?? 0} icon={<GitBranch className="h-4 w-4" />} color="chart-3" />
+          <InsightSummaryCard label="Device Ideas" value={insightCounts.device_recommendation ?? 0} icon={<Cpu className="h-4 w-4" />} color="chart-5" />
+        </div>
+
+        {insightsLoading ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-28 bg-muted rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : insights.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center">
+              <Sparkles className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="text-muted-foreground mb-3">
+                No insights yet. Run AI analysis to discover patterns, anomalies, and automation opportunities.
+              </p>
+              <Button onClick={analyzeNow} disabled={analyzing} className="glow-sm">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Run First Analysis
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {insights.slice(0, 5).map((insight) => (
+              <InsightCard key={insight.id} insight={insight} onStatusChange={handleInsightStatusChange} />
+            ))}
+            {totalInsights > 5 && (
+              <Link href="/insights">
+                <Button variant="outline" className="w-full border-border/50">
+                  View All {totalInsights} Insights
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+    ),
+
     "instance-health": () =>
       data && (
         <Card className="overflow-hidden">
@@ -415,8 +574,18 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight text-gradient">Dashboard</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-gradient">SmartHass</h1>
+          <p className="text-sm text-muted-foreground">
+            AI-powered analysis of your smart home
+            {newInsightCount > 0 && (
+              <Badge variant="default" className="ml-2 glow-sm">
+                {newInsightCount} new
+              </Badge>
+            )}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           {instances.length > 1 && (
             <select
@@ -441,23 +610,96 @@ export default function DashboardPage() {
             {syncing ? "Syncing…" : "Sync"}
           </Button>
           <Button
+            onClick={analyzeNow}
+            disabled={analyzing}
+            className={analyzing ? "" : "glow-sm"}
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {analyzing ? "Analyzing…" : "Analyze Now"}
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={() => setCustomizeOpen(true)}
           >
-            <Settings2 className="h-4 w-4 mr-1" />
-            Customize
+            <Settings2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {data &&
-        widgetOrder
-          .filter((id) => !hiddenWidgets.has(id))
-          .map((id) => {
-            const render = widgets[id];
-            return render ? <div key={id}>{render()}</div> : null;
-          })}
+      {widgetOrder
+        .filter((id) => !hiddenWidgets.has(id))
+        .map((id) => {
+          const render = widgets[id];
+          return render ? <div key={id}>{render()}</div> : null;
+        })}
+
+      {/* Analysis progress dialog */}
+      <Dialog
+        open={analysisDialogOpen}
+        onOpenChange={(open) => {
+          if (!analyzing) setAnalysisDialogOpen(open);
+        }}
+      >
+        <DialogContent showCloseButton={!analyzing} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {analysisResult === null
+                ? "Running AI Analysis"
+                : analysisResult.success
+                  ? "Analysis Complete"
+                  : "Analysis Failed"}
+            </DialogTitle>
+            <DialogDescription>
+              {analysisResult === null
+                ? "Analyzing your smart home data across multiple categories…"
+                : analysisResult.success
+                  ? `Generated ${analysisResult.totalInsights ?? 0} new insight${(analysisResult.totalInsights ?? 0) === 1 ? "" : "s"}.`
+                  : analysisResult.error}
+            </DialogDescription>
+          </DialogHeader>
+
+          {analysisResult === null && (
+            <div className="space-y-3 py-2">
+              {Object.entries(analysisCategoryLabels).map(([key, label]) => (
+                <div key={key} className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {analysisResult?.success && (
+            <div className="space-y-3 py-2">
+              {Object.entries(analysisResult.results ?? {}).map(([key, count]) => (
+                <div key={key} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>{analysisCategoryLabels[key] ?? key}</span>
+                  </div>
+                  <Badge variant="secondary">{count}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {analysisResult && !analysisResult.success && (
+            <div className="flex items-start gap-3 rounded-lg bg-destructive/10 p-3 text-sm">
+              <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <span>{analysisResult.error}</span>
+            </div>
+          )}
+
+          {analysisResult !== null && (
+            <DialogFooter>
+              <Button onClick={() => setAnalysisDialogOpen(false)}>
+                {analysisResult.success ? "Done" : "Close"}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <CustomizePanel
         open={customizeOpen}
@@ -508,6 +750,37 @@ function MetricCard({
       </CardHeader>
       <CardContent className="relative">
         <p className="text-xl font-bold tracking-tight">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InsightSummaryCard({
+  label,
+  value,
+  icon,
+  color = "primary",
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  color?: string;
+}) {
+  return (
+    <Card className="relative overflow-hidden">
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle at top right, var(--color-${color}), transparent 70%)`,
+          opacity: 0.06,
+        }}
+      />
+      <CardContent className="pt-3 pb-2.5 relative">
+        <div className="flex items-center justify-between mb-0.5">
+          <span className="text-xs text-muted-foreground">{label}</span>
+          <span style={{ color: `var(--color-${color})` }}>{icon}</span>
+        </div>
+        <p className="text-lg font-bold">{value}</p>
       </CardContent>
     </Card>
   );
