@@ -6,7 +6,8 @@ import { NextResponse } from "next/server";
 
 /**
  * GET /api/ai-usage?instanceId=...
- * Returns AI usage statistics: token totals, run history, per-day breakdown.
+ * Returns AI usage statistics: token totals, run history, per-day breakdown,
+ * per-category insight totals, and 30-day trend comparison.
  */
 export async function GET(request: Request) {
   const session = await auth();
@@ -51,8 +52,37 @@ export async function GET(request: Request) {
     .from(schema.analysisRuns)
     .where(eq(schema.analysisRuns.instanceId, instanceId));
 
-  // Last 30 days daily token usage
-  const dailyUsage = await db
+  // Current 30-day window tokens & runs
+  const [current30] = await db
+    .select({
+      tokens: sql<number>`coalesce(sum(${schema.analysisRuns.tokensUsed}), 0)`,
+      runs: count(),
+    })
+    .from(schema.analysisRuns)
+    .where(
+      and(
+        eq(schema.analysisRuns.instanceId, instanceId),
+        sql`${schema.analysisRuns.startedAt} >= now() - interval '30 days'`
+      )
+    );
+
+  // Previous 30-day window (31-60 days ago) for trend comparison
+  const [prev30] = await db
+    .select({
+      tokens: sql<number>`coalesce(sum(${schema.analysisRuns.tokensUsed}), 0)`,
+      runs: count(),
+    })
+    .from(schema.analysisRuns)
+    .where(
+      and(
+        eq(schema.analysisRuns.instanceId, instanceId),
+        sql`${schema.analysisRuns.startedAt} >= now() - interval '60 days'`,
+        sql`${schema.analysisRuns.startedAt} < now() - interval '30 days'`
+      )
+    );
+
+  // Last 30 days daily token usage (sparse — only days with runs)
+  const sparseDaily = await db
     .select({
       date: sql<string>`date(${schema.analysisRuns.startedAt})`,
       tokens: sql<number>`coalesce(sum(${schema.analysisRuns.tokensUsed}), 0)`,
@@ -67,6 +97,22 @@ export async function GET(request: Request) {
     )
     .groupBy(sql`date(${schema.analysisRuns.startedAt})`)
     .orderBy(sql`date(${schema.analysisRuns.startedAt})`);
+
+  // Fill in missing days so the chart shows a continuous 30-day timeline
+  const dailyMap = new Map(sparseDaily.map((d) => [d.date, d]));
+  const dailyUsage: { date: string; tokens: number; runs: number }[] = [];
+  const now = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const entry = dailyMap.get(key);
+    dailyUsage.push({
+      date: key,
+      tokens: entry ? Number(entry.tokens) : 0,
+      runs: entry ? Number(entry.runs) : 0,
+    });
+  }
 
   // Recent runs (last 20)
   const recentRuns = await db
@@ -97,6 +143,42 @@ export async function GET(request: Request) {
       )
     );
 
+  // Aggregate insight counts across all completed runs by category
+  const categoryTotals = await db
+    .select({
+      insightsGenerated: schema.analysisRuns.insightsGenerated,
+    })
+    .from(schema.analysisRuns)
+    .where(
+      and(
+        eq(schema.analysisRuns.instanceId, instanceId),
+        eq(schema.analysisRuns.status, "completed")
+      )
+    );
+
+  const insightsByCategory: Record<string, number> = {};
+  for (const run of categoryTotals) {
+    const gen = run.insightsGenerated as Record<string, number> | null;
+    if (gen) {
+      for (const [cat, n] of Object.entries(gen)) {
+        insightsByCategory[cat] = (insightsByCategory[cat] ?? 0) + (typeof n === "number" ? n : 0);
+      }
+    }
+  }
+
+  // Last completed run timestamp
+  const [lastRun] = await db
+    .select({ completedAt: schema.analysisRuns.completedAt })
+    .from(schema.analysisRuns)
+    .where(
+      and(
+        eq(schema.analysisRuns.instanceId, instanceId),
+        eq(schema.analysisRuns.status, "completed")
+      )
+    )
+    .orderBy(desc(schema.analysisRuns.completedAt))
+    .limit(1);
+
   return NextResponse.json({
     totals: {
       totalRuns: totals.totalRuns,
@@ -105,6 +187,14 @@ export async function GET(request: Request) {
       failedRuns: Number(totals.failedRuns),
       avgTokensPerRun: Math.round(Number(avgStats.avgTokens)),
     },
+    trend: {
+      currentTokens: Number(current30.tokens),
+      previousTokens: Number(prev30.tokens),
+      currentRuns: Number(current30.runs),
+      previousRuns: Number(prev30.runs),
+    },
+    insightsByCategory,
+    lastCompletedAt: lastRun?.completedAt ?? null,
     dailyUsage,
     recentRuns,
   });

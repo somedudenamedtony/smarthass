@@ -17,7 +17,7 @@ interface TrendSparklineProps {
 
 export function TrendSparkline({
   data,
-  color = "oklch(0.75 0.18 195)",
+  color = "oklch(0.65 0.14 250)",
   height = 32,
   showArea = true,
 }: TrendSparklineProps) {
