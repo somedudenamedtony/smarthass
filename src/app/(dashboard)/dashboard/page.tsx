@@ -305,7 +305,15 @@ export default function DashboardPage() {
     }
   }, [toast]);
 
-  const widgetOrder = preferences.widgetOrder ?? DEFAULT_WIDGET_ORDER;
+  // Merge saved preferences with any new widgets added since prefs were saved
+  const savedOrder = preferences.widgetOrder;
+  const widgetOrder = savedOrder
+    ? [
+        // Prepend any new widgets not in the saved order
+        ...DEFAULT_WIDGET_ORDER.filter((id) => !savedOrder.includes(id)),
+        ...savedOrder,
+      ]
+    : DEFAULT_WIDGET_ORDER;
   const hiddenWidgets = new Set(preferences.hiddenWidgets ?? []);
   const totalInsights = Object.values(insightCounts).reduce((a, b) => a + b, 0);
 
