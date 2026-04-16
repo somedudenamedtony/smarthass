@@ -325,3 +325,334 @@ export const syncJobsRelations = relations(syncJobs, ({ one }) => ({
     references: [haInstances.id],
   }),
 }));
+
+// ─── Phase 2 & 3: New Enums ─────────────────────────────────────────────────
+
+export const anomalySeverityEnum = pgEnum("anomaly_severity", [
+  "info",
+  "warning",
+  "critical",
+]);
+
+export const anomalyStatusEnum = pgEnum("anomaly_status", [
+  "active",
+  "acknowledged",
+  "resolved",
+  "dismissed",
+]);
+
+export const blueprintStatusEnum = pgEnum("blueprint_status", [
+  "draft",
+  "active",
+  "exported",
+  "archived",
+]);
+
+export const patternTypeEnum = pgEnum("pattern_type", [
+  "routine",
+  "correlation",
+  "threshold",
+  "sequence",
+  "seasonal",
+]);
+
+export const widgetTypeEnum = pgEnum("widget_type", [
+  "stats",
+  "entity_list",
+  "chart",
+  "insights",
+  "activity",
+  "health",
+  "energy",
+  "heatmap",
+  "areas",
+  "quick_actions",
+]);
+
+export const energySensorTypeEnum = pgEnum("energy_sensor_type", [
+  "consumption",
+  "production",
+  "battery",
+  "cost",
+  "gas",
+  "water",
+]);
+
+// ─── Phase 3: Areas Table ───────────────────────────────────────────────────
+
+export const areas = pgTable("areas", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  haAreaId: text("ha_area_id").notNull(),
+  name: text("name").notNull(),
+  floorId: text("floor_id"),
+  icon: text("icon"),
+  aliases: jsonb("aliases"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 3: Devices Table ─────────────────────────────────────────────────
+
+export const devices = pgTable("devices", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  haDeviceId: text("ha_device_id").notNull(),
+  name: text("name"),
+  nameByUser: text("name_by_user"),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  swVersion: text("sw_version"),
+  hwVersion: text("hw_version"),
+  areaId: text("area_id"),
+  disabledBy: text("disabled_by"),
+  entryType: text("entry_type"),
+  viaDeviceId: text("via_device_id"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 3: Scenes Table ──────────────────────────────────────────────────
+
+export const scenes = pgTable("scenes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  entityId: text("entity_id").notNull(),
+  name: text("name").notNull(),
+  icon: text("icon"),
+  areaId: text("area_id"),
+  entityIds: jsonb("entity_ids"),
+  lastActivated: timestamp("last_activated", { mode: "date" }),
+  activationCount: integer("activation_count").default(0).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 3: Scripts Table ─────────────────────────────────────────────────
+
+export const scripts = pgTable("scripts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  entityId: text("entity_id").notNull(),
+  name: text("name").notNull(),
+  icon: text("icon"),
+  description: text("description"),
+  mode: text("mode"),
+  fields: jsonb("fields"),
+  sequence: jsonb("sequence"),
+  lastTriggered: timestamp("last_triggered", { mode: "date" }),
+  triggerCount: integer("trigger_count").default(0).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 3: Energy Sensors Table ──────────────────────────────────────────
+
+export const energySensors = pgTable("energy_sensors", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  entityDbId: uuid("entity_id")
+    .notNull()
+    .references(() => entities.id, { onDelete: "cascade" }),
+  sensorType: energySensorTypeEnum("sensor_type").notNull(),
+  unitOfMeasurement: text("unit_of_measurement"),
+  deviceClass: text("device_class"),
+  stateClass: text("state_class"),
+  tariffEntityId: text("tariff_entity_id"),
+  costPerKwh: numeric("cost_per_kwh"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 3: Energy Daily Stats Table ──────────────────────────────────────
+
+export const energyDailyStats = pgTable("energy_daily_stats", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  energySensorId: uuid("energy_sensor_id")
+    .notNull()
+    .references(() => energySensors.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  totalConsumption: numeric("total_consumption"),
+  totalProduction: numeric("total_production"),
+  netConsumption: numeric("net_consumption"),
+  peakConsumption: numeric("peak_consumption"),
+  peakTime: text("peak_time"),
+  costEstimate: numeric("cost_estimate"),
+  hourlyData: jsonb("hourly_data"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 2: Anomaly Alerts Table ──────────────────────────────────────────
+
+export const anomalyAlerts = pgTable("anomaly_alerts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  entityDbId: uuid("entity_id").references(() => entities.id, { onDelete: "set null" }),
+  severity: anomalySeverityEnum("severity").default("info").notNull(),
+  status: anomalyStatusEnum("status").default("active").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  detectedValue: text("detected_value"),
+  expectedRange: text("expected_range"),
+  deviationScore: numeric("deviation_score"),
+  detectedAt: timestamp("detected_at", { mode: "date" }).defaultNow().notNull(),
+  acknowledgedAt: timestamp("acknowledged_at", { mode: "date" }),
+  resolvedAt: timestamp("resolved_at", { mode: "date" }),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 3: Blueprints Table ──────────────────────────────────────────────
+
+export const blueprints = pgTable("blueprints", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  analysisId: uuid("analysis_id").references(() => aiAnalyses.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  domain: text("domain").default("automation").notNull(),
+  sourceEntities: jsonb("source_entities"),
+  inputSchema: jsonb("input_schema"),
+  blueprintYaml: text("blueprint_yaml").notNull(),
+  status: blueprintStatusEnum("status").default("draft").notNull(),
+  exportedAt: timestamp("exported_at", { mode: "date" }),
+  deployCount: integer("deploy_count").default(0).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 2: Learned Patterns Table ────────────────────────────────────────
+
+export const learnedPatterns = pgTable("learned_patterns", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  patternType: patternTypeEnum("pattern_type").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  entities: jsonb("entities").notNull(),
+  conditions: jsonb("conditions"),
+  patternData: jsonb("pattern_data").notNull(),
+  confidence: numeric("confidence").default("0.5").notNull(),
+  occurrenceCount: integer("occurrence_count").default(1).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { mode: "date" }).defaultNow().notNull(),
+  firstSeenAt: timestamp("first_seen_at", { mode: "date" }).defaultNow().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 1: Dashboard Widgets Table ───────────────────────────────────────
+
+export const dashboardWidgets = pgTable("dashboard_widgets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  instanceId: uuid("instance_id").references(() => haInstances.id, { onDelete: "cascade" }),
+  widgetType: widgetTypeEnum("widget_type").notNull(),
+  title: text("title"),
+  position: integer("position").default(0).notNull(),
+  width: integer("width").default(1).notNull(),
+  height: integer("height").default(1).notNull(),
+  config: jsonb("config"),
+  isVisible: boolean("is_visible").default(true).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Phase 2 & 3: Additional Relations ──────────────────────────────────────
+
+export const areasRelations = relations(areas, ({ one, many }) => ({
+  instance: one(haInstances, {
+    fields: [areas.instanceId],
+    references: [haInstances.id],
+  }),
+}));
+
+export const devicesRelations = relations(devices, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [devices.instanceId],
+    references: [haInstances.id],
+  }),
+}));
+
+export const scenesRelations = relations(scenes, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [scenes.instanceId],
+    references: [haInstances.id],
+  }),
+}));
+
+export const scriptsRelations = relations(scripts, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [scripts.instanceId],
+    references: [haInstances.id],
+  }),
+}));
+
+export const energySensorsRelations = relations(energySensors, ({ one, many }) => ({
+  instance: one(haInstances, {
+    fields: [energySensors.instanceId],
+    references: [haInstances.id],
+  }),
+  entity: one(entities, {
+    fields: [energySensors.entityDbId],
+    references: [entities.id],
+  }),
+  dailyStats: many(energyDailyStats),
+}));
+
+export const energyDailyStatsRelations = relations(energyDailyStats, ({ one }) => ({
+  sensor: one(energySensors, {
+    fields: [energyDailyStats.energySensorId],
+    references: [energySensors.id],
+  }),
+}));
+
+export const anomalyAlertsRelations = relations(anomalyAlerts, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [anomalyAlerts.instanceId],
+    references: [haInstances.id],
+  }),
+  entity: one(entities, {
+    fields: [anomalyAlerts.entityDbId],
+    references: [entities.id],
+  }),
+}));
+
+export const blueprintsRelations = relations(blueprints, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [blueprints.instanceId],
+    references: [haInstances.id],
+  }),
+  analysis: one(aiAnalyses, {
+    fields: [blueprints.analysisId],
+    references: [aiAnalyses.id],
+  }),
+}));
+
+export const learnedPatternsRelations = relations(learnedPatterns, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [learnedPatterns.instanceId],
+    references: [haInstances.id],
+  }),
+}));
+
+export const dashboardWidgetsRelations = relations(dashboardWidgets, ({ one }) => ({
+  user: one(users, {
+    fields: [dashboardWidgets.userId],
+    references: [users.id],
+  }),
+  instance: one(haInstances, {
+    fields: [dashboardWidgets.instanceId],
+    references: [haInstances.id],
+  }),
+}));

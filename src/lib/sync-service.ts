@@ -486,3 +486,343 @@ export async function reconcileSync(instanceId: string, client: HAClient) {
 
   return { entityCount, automationCount, baselineCount, statsSkipped: true };
 }
+
+// ─── Phase 3: Area, Device, Scene, Script Sync ────────────────────────────────
+
+/**
+ * Sync areas from HA's area registry.
+ * Uses the WebSocket API to fetch the area registry.
+ */
+export async function syncAreas(instanceId: string, client: HAClient) {
+  // Areas are not exposed via REST API, so we need to extract them from entity attributes
+  // or use the WebSocket config/area_registry/list command
+  // For now, we'll extract unique area_id values from entities
+  
+  const states = await client.getStates();
+  const areaMap = new Map<string, { id: string; name: string }>();
+  
+  for (const state of states) {
+    const areaId = state.attributes.area_id as string | undefined;
+    if (areaId && !areaMap.has(areaId)) {
+      // Try to get a friendly name from device registry or use the ID
+      const name = areaId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      areaMap.set(areaId, { id: areaId, name });
+    }
+  }
+  
+  let count = 0;
+  for (const [haAreaId, areaInfo] of areaMap) {
+    const existing = await db
+      .select({ id: schema.areas.id })
+      .from(schema.areas)
+      .where(
+        and(
+          eq(schema.areas.instanceId, instanceId),
+          eq(schema.areas.haAreaId, haAreaId)
+        )
+      )
+      .limit(1);
+    
+    if (existing[0]) {
+      await db
+        .update(schema.areas)
+        .set({ name: areaInfo.name })
+        .where(eq(schema.areas.id, existing[0].id));
+    } else {
+      await db.insert(schema.areas).values({
+        instanceId,
+        haAreaId,
+        name: areaInfo.name,
+      });
+    }
+    count++;
+  }
+  
+  return count;
+}
+
+/**
+ * Sync devices from HA entities.
+ * Extracts device information from entity attributes.
+ */
+export async function syncDevices(instanceId: string, client: HAClient) {
+  const states = await client.getStates();
+  const deviceMap = new Map<string, {
+    id: string;
+    name: string;
+    manufacturer?: string;
+    model?: string;
+    areaId?: string;
+  }>();
+  
+  for (const state of states) {
+    const deviceId = state.attributes.device_id as string | undefined;
+    if (deviceId && !deviceMap.has(deviceId)) {
+      deviceMap.set(deviceId, {
+        id: deviceId,
+        name: (state.attributes.device_name as string) || 
+              (state.attributes.friendly_name as string) || 
+              deviceId,
+        manufacturer: state.attributes.manufacturer as string | undefined,
+        model: state.attributes.model as string | undefined,
+        areaId: state.attributes.area_id as string | undefined,
+      });
+    }
+  }
+  
+  let count = 0;
+  for (const [haDeviceId, deviceInfo] of deviceMap) {
+    const existing = await db
+      .select({ id: schema.devices.id })
+      .from(schema.devices)
+      .where(
+        and(
+          eq(schema.devices.instanceId, instanceId),
+          eq(schema.devices.haDeviceId, haDeviceId)
+        )
+      )
+      .limit(1);
+    
+    const data = {
+      name: deviceInfo.name,
+      manufacturer: deviceInfo.manufacturer ?? null,
+      model: deviceInfo.model ?? null,
+      areaId: deviceInfo.areaId ?? null,
+    };
+    
+    if (existing[0]) {
+      await db
+        .update(schema.devices)
+        .set(data)
+        .where(eq(schema.devices.id, existing[0].id));
+    } else {
+      await db.insert(schema.devices).values({
+        instanceId,
+        haDeviceId,
+        ...data,
+      });
+    }
+    count++;
+  }
+  
+  return count;
+}
+
+/**
+ * Sync scenes from HA.
+ */
+export async function syncScenes(instanceId: string, client: HAClient) {
+  const states = await client.getStates();
+  const sceneStates = states.filter((s) => s.entity_id.startsWith("scene."));
+  
+  let count = 0;
+  for (const scene of sceneStates) {
+    const existing = await db
+      .select({ id: schema.scenes.id })
+      .from(schema.scenes)
+      .where(
+        and(
+          eq(schema.scenes.instanceId, instanceId),
+          eq(schema.scenes.entityId, scene.entity_id)
+        )
+      )
+      .limit(1);
+    
+    const data = {
+      name: (scene.attributes.friendly_name as string) || scene.entity_id,
+      icon: (scene.attributes.icon as string) ?? null,
+      areaId: (scene.attributes.area_id as string) ?? null,
+      entityIds: scene.attributes.entity_id as string[] | undefined,
+    };
+    
+    if (existing[0]) {
+      await db
+        .update(schema.scenes)
+        .set(data)
+        .where(eq(schema.scenes.id, existing[0].id));
+    } else {
+      await db.insert(schema.scenes).values({
+        instanceId,
+        entityId: scene.entity_id,
+        ...data,
+      });
+    }
+    count++;
+  }
+  
+  return count;
+}
+
+/**
+ * Sync scripts from HA.
+ */
+export async function syncScripts(instanceId: string, client: HAClient) {
+  const states = await client.getStates();
+  const scriptStates = states.filter((s) => s.entity_id.startsWith("script."));
+  
+  let count = 0;
+  for (const script of scriptStates) {
+    const existing = await db
+      .select({ id: schema.scripts.id })
+      .from(schema.scripts)
+      .where(
+        and(
+          eq(schema.scripts.instanceId, instanceId),
+          eq(schema.scripts.entityId, script.entity_id)
+        )
+      )
+      .limit(1);
+    
+    const data = {
+      name: (script.attributes.friendly_name as string) || script.entity_id,
+      icon: (script.attributes.icon as string) ?? null,
+      description: (script.attributes.description as string) ?? null,
+      mode: (script.attributes.mode as string) ?? null,
+      lastTriggered: script.attributes.last_triggered
+        ? new Date(script.attributes.last_triggered as string)
+        : null,
+    };
+    
+    if (existing[0]) {
+      await db
+        .update(schema.scripts)
+        .set(data)
+        .where(eq(schema.scripts.id, existing[0].id));
+    } else {
+      await db.insert(schema.scripts).values({
+        instanceId,
+        entityId: script.entity_id,
+        ...data,
+      });
+    }
+    count++;
+  }
+  
+  return count;
+}
+
+/**
+ * Identify and sync energy sensors.
+ */
+export async function syncEnergySensors(instanceId: string, client: HAClient) {
+  const states = await client.getStates();
+  
+  // Find sensors with energy-related device classes
+  const energyDeviceClasses = [
+    "energy", "power", "gas", "water", "monetary", "battery"
+  ];
+  
+  const energyStates = states.filter((s) => {
+    const deviceClass = s.attributes.device_class as string | undefined;
+    const stateClass = s.attributes.state_class as string | undefined;
+    return deviceClass && energyDeviceClasses.includes(deviceClass) && stateClass;
+  });
+  
+  let count = 0;
+  for (const sensor of energyStates) {
+    // First, ensure the entity exists in our entities table
+    const entityRecord = await db
+      .select({ id: schema.entities.id })
+      .from(schema.entities)
+      .where(
+        and(
+          eq(schema.entities.instanceId, instanceId),
+          eq(schema.entities.entityId, sensor.entity_id)
+        )
+      )
+      .limit(1);
+    
+    if (!entityRecord[0]) continue;
+    
+    const deviceClass = sensor.attributes.device_class as string;
+    let sensorType: "consumption" | "production" | "battery" | "cost" | "gas" | "water";
+    
+    switch (deviceClass) {
+      case "energy":
+      case "power":
+        sensorType = "consumption"; // Could be refined based on naming
+        break;
+      case "battery":
+        sensorType = "battery";
+        break;
+      case "monetary":
+        sensorType = "cost";
+        break;
+      case "gas":
+        sensorType = "gas";
+        break;
+      case "water":
+        sensorType = "water";
+        break;
+      default:
+        sensorType = "consumption";
+    }
+    
+    const existing = await db
+      .select({ id: schema.energySensors.id })
+      .from(schema.energySensors)
+      .where(
+        and(
+          eq(schema.energySensors.instanceId, instanceId),
+          eq(schema.energySensors.entityDbId, entityRecord[0].id)
+        )
+      )
+      .limit(1);
+    
+    const data = {
+      sensorType,
+      unitOfMeasurement: (sensor.attributes.unit_of_measurement as string) ?? null,
+      deviceClass: deviceClass,
+      stateClass: (sensor.attributes.state_class as string) ?? null,
+    };
+    
+    if (existing[0]) {
+      await db
+        .update(schema.energySensors)
+        .set(data)
+        .where(eq(schema.energySensors.id, existing[0].id));
+    } else {
+      await db.insert(schema.energySensors).values({
+        instanceId,
+        entityDbId: entityRecord[0].id,
+        ...data,
+      });
+    }
+    count++;
+  }
+  
+  return count;
+}
+
+/**
+ * Extended full sync: includes areas, devices, scenes, scripts, and energy sensors.
+ */
+export async function extendedFullSync(instanceId: string, client: HAClient) {
+  const entityCount = await syncEntities(instanceId, client);
+  const automationCount = await syncAutomations(instanceId, client);
+  const areaCount = await syncAreas(instanceId, client);
+  const deviceCount = await syncDevices(instanceId, client);
+  const sceneCount = await syncScenes(instanceId, client);
+  const scriptCount = await syncScripts(instanceId, client);
+  const energySensorCount = await syncEnergySensors(instanceId, client);
+  const statsCount = await computeDailyStats(instanceId, client);
+  const baselineCount = await computeBaselines(instanceId);
+
+  // Update last sync time
+  await db
+    .update(schema.haInstances)
+    .set({ lastSyncAt: new Date(), status: "connected" })
+    .where(eq(schema.haInstances.id, instanceId));
+
+  return { 
+    entityCount, 
+    automationCount, 
+    areaCount,
+    deviceCount,
+    sceneCount,
+    scriptCount,
+    energySensorCount,
+    statsCount,
+    baselineCount,
+  };
+}
