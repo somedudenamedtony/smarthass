@@ -80,11 +80,6 @@ export function ThemeProvider({
     setThemeState(newTheme);
   };
 
-  // Prevent flash of wrong theme
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
       {children}
