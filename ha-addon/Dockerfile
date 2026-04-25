@@ -9,11 +9,7 @@ WORKDIR /app
 ARG SMARTHASS_REPO=https://github.com/somedudenamedtony/smarthass.git
 ARG SMARTHASS_REF=main
 # Version tag forces Docker to invalidate cache and re-clone on each release
-<<<<<<< HEAD
 RUN echo "SmartHass v1.4.2" && git clone --depth=1 --branch=${SMARTHASS_REF} ${SMARTHASS_REPO} .
-=======
-RUN echo "SmartHass v1.4.1" && git clone --depth=1 --branch=${SMARTHASS_REF} ${SMARTHASS_REPO} .
->>>>>>> b91a715988fd450ed94fbc6131b852158b3dc227
 
 RUN npm ci
 
