@@ -88,9 +88,17 @@ export default function AutomationDetailPage() {
             {automation.haAutomationId}
           </p>
         </div>
-        <Badge variant={automation.enabled ? "default" : "secondary"}>
-          {automation.enabled ? "Enabled" : "Disabled"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/automations/${id}/review`}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+          >
+            Review with AI
+          </Link>
+          <Badge variant={automation.enabled ? "default" : "secondary"}>
+            {automation.enabled ? "Enabled" : "Disabled"}
+          </Badge>
+        </div>
       </div>
 
       <div className="text-sm text-muted-foreground">

@@ -568,6 +568,63 @@ export const dashboardWidgets = pgTable("dashboard_widgets", {
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
+// ─── Automation Reviews Table ───────────────────────────────────────────────
+
+export const automationReviews = pgTable("automation_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  automationId: uuid("automation_id")
+    .notNull()
+    .references(() => automations.id, { onDelete: "cascade" }),
+  configHash: text("config_hash").notNull(),
+  healthScore: integer("health_score").default(0).notNull(),
+  findings: jsonb("findings").notNull(),
+  improvedYaml: text("improved_yaml"),
+  summary: text("summary"),
+  tokensUsed: integer("tokens_used").default(0),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Automation Templates Table ─────────────────────────────────────────────
+
+export const automationTemplates = pgTable("automation_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull(),
+  icon: text("icon"),
+  useCase: text("use_case").notNull(),
+  requiredDomains: jsonb("required_domains").notNull(),
+  optionalDomains: jsonb("optional_domains"),
+  templateYaml: text("template_yaml").notNull(),
+  inputSchema: jsonb("input_schema"),
+  exampleConfig: jsonb("example_config"),
+  matchScore: numeric("match_score").default("0"),
+  deployCount: integer("deploy_count").default(0).notNull(),
+  isCurated: boolean("is_curated").default(false).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ─── Notifications Table ────────────────────────────────────────────────────
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  instanceId: uuid("instance_id")
+    .notNull()
+    .references(() => haInstances.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  actionUrl: text("action_url"),
+  metadata: jsonb("metadata"),
+  isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
 // ─── Phase 2 & 3: Additional Relations ──────────────────────────────────────
 
 export const areasRelations = relations(areas, ({ one, many }) => ({
@@ -653,6 +710,31 @@ export const dashboardWidgetsRelations = relations(dashboardWidgets, ({ one }) =
   }),
   instance: one(haInstances, {
     fields: [dashboardWidgets.instanceId],
+    references: [haInstances.id],
+  }),
+}));
+
+export const automationReviewsRelations = relations(automationReviews, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [automationReviews.instanceId],
+    references: [haInstances.id],
+  }),
+  automation: one(automations, {
+    fields: [automationReviews.automationId],
+    references: [automations.id],
+  }),
+}));
+
+export const automationTemplatesRelations = relations(automationTemplates, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [automationTemplates.instanceId],
+    references: [haInstances.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  instance: one(haInstances, {
+    fields: [notifications.instanceId],
     references: [haInstances.id],
   }),
 }));

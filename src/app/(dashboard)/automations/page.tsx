@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, CheckCircle, XCircle, Plus, AlertCircle } from "lucide-react";
+import { Zap, Clock, CheckCircle, XCircle, Plus, AlertCircle, GitBranch, Wand2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
@@ -94,17 +94,31 @@ export default function AutomationsPage() {
     <div className="space-y-4 animate-fade-up">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold tracking-tight text-gradient">Automations</h1>
-        {instances.length > 1 && (
-          <select
-            className="rounded-lg border border-border/50 bg-card px-3 py-1.5 text-sm"
-            value={selectedInstance ?? ""}
-            onChange={(e) => setSelectedInstance(e.target.value)}
-          >
-            {instances.map((inst) => (
-              <option key={inst.id} value={inst.id}>{inst.name}</option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-2">
+          <Link href="/automations/dependencies">
+            <Button variant="outline" size="sm">
+              <GitBranch className="h-4 w-4 mr-1" />
+              Dependencies
+            </Button>
+          </Link>
+          <Link href="/automations/new">
+            <Button size="sm">
+              <Wand2 className="h-4 w-4 mr-1" />
+              Build New
+            </Button>
+          </Link>
+          {instances.length > 1 && (
+            <select
+              className="rounded-lg border border-border/50 bg-card px-3 py-1.5 text-sm"
+              value={selectedInstance ?? ""}
+              onChange={(e) => setSelectedInstance(e.target.value)}
+            >
+              {instances.map((inst) => (
+                <option key={inst.id} value={inst.id}>{inst.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {loading ? (

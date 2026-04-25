@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ interface HAInstance {
 }
 
 export default function ScenesPage() {
+  const router = useRouter();
   const [instances, setInstances] = useState<HAInstance[]>([]);
   const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -105,7 +107,7 @@ export default function ScenesPage() {
             <Layers className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-medium mb-2">No Home Assistant instance connected</p>
             <p className="text-muted-foreground mb-4">Connect an instance to view scenes and scripts</p>
-            <Button onClick={() => window.location.href = "/settings"}>
+            <Button onClick={() => router.push("/settings")}>
               Go to Settings
             </Button>
           </CardContent>
@@ -297,7 +299,7 @@ export default function ScenesPage() {
             SmartHass AI can analyze your usage patterns to suggest new scenes that group 
             commonly-used entities together.
           </p>
-          <Button variant="outline" size="sm" onClick={() => window.location.href = "/insights"}>
+          <Button variant="outline" size="sm" onClick={() => router.push("/insights")}>
             View AI Insights →
           </Button>
         </CardContent>

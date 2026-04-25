@@ -20,6 +20,7 @@ import {
   buildDeviceSuggestionPrompt,
   buildUsageAndEfficiencyPrompt,
   buildAutomationAndCorrelationPrompt,
+  buildAutomationReviewPrompt,
   estimateTokens,
   filterInputByRelevance,
 } from "./prompts";
@@ -437,7 +438,8 @@ type AnalysisCategory =
   | "automation_gaps"
   | "efficiency"
   | "cross_device_correlation"
-  | "device_suggestions";
+  | "device_suggestions"
+  | "automation_review";
 
 const ANALYSIS_RUNNERS: Record<
   AnalysisCategory,
@@ -449,6 +451,7 @@ const ANALYSIS_RUNNERS: Record<
   efficiency: buildEfficiencyPrompt,
   cross_device_correlation: buildCrossDeviceCorrelationPrompt,
   device_suggestions: buildDeviceSuggestionPrompt,
+  automation_review: buildAutomationReviewPrompt,
 };
 
 /**
@@ -476,6 +479,7 @@ export async function runAnalysis(
     "automation_gaps",
     "device_suggestions",
     "cross_device_correlation",
+    "automation_review",
   ];
 
   if (!hasDailyStats && !entityOnlyCategories.includes(category)) {
@@ -511,6 +515,7 @@ export async function runAnalysis(
     category === "automation_gaps" ? "automation_gap" :
     category === "cross_device_correlation" ? "cross_device_correlation" :
     category === "device_suggestions" ? "device_suggestion" :
+    category === "automation_review" ? "automation_review" :
     category;
 
   const recentInsights = await db
@@ -727,6 +732,24 @@ export async function runAllAnalyses(
     results.device_suggestions = 0;
   }
 
+  // ── Call 5: Automation Review (standalone, Sonnet) ────────────────────
+  if (input.automations.length > 0) {
+    try {
+      const { system, user } = buildAutomationReviewPrompt(input);
+      const { results: r, tokensUsed } = await callClaude(system, user);
+      const counts = await storeResults(r, ["automation_review"]);
+      results.automation_review = counts.automation_review ?? 0;
+      totalTokens += tokensUsed;
+      console.log(
+        `[ai] automation_review: ${results.automation_review} insights (${tokensUsed} tokens)`
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[ai] automation_review failed:`, msg);
+      results.automation_review = 0;
+    }
+  }
+
   console.log(
     `[ai] All analyses complete for ${instanceId}: ${totalTokens} total tokens used`
   );
@@ -822,6 +845,17 @@ export async function runAllAnalysesBatch(
     user: ds.user,
     model: "claude-haiku-4-20250414",
   });
+
+  // Automation review (only if automations exist)
+  if (input.automations.length > 0) {
+    const ar = buildAutomationReviewPrompt(input);
+    batchRequests.push({
+      customId: `${run.id}:automation_review`,
+      system: ar.system,
+      user: ar.user,
+      model: "claude-sonnet-4-20250514",
+    });
+  }
 
   // Apply token budget to each request
   for (const req of batchRequests) {
@@ -940,6 +974,14 @@ export async function runAllAnalysesBatch(
     const counts = await storeBatchResults(dsResult.results, ["device_suggestion"]);
     results.device_suggestions = counts.device_suggestion ?? 0;
     totalTokens += dsResult.tokensUsed;
+  }
+
+  // Process automation review
+  const arResult = batchResults.get(`${run.id}:automation_review`);
+  if (arResult) {
+    const counts = await storeBatchResults(arResult.results, ["automation_review"]);
+    results.automation_review = counts.automation_review ?? 0;
+    totalTokens += arResult.tokensUsed;
   }
 
   // Update hash and run record

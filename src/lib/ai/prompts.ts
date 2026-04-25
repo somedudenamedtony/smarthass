@@ -638,3 +638,59 @@ ${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
 
   return { system, user };
 }
+
+// ── Automation Review (evaluate existing automations for improvements) ──────
+
+export function buildAutomationReviewPrompt(input: AnalysisInput) {
+  const system = `You are a Home Assistant automation expert performing a code review of existing automations. Evaluate each automation for potential improvements, reliability issues, and optimization opportunities.
+
+Return a JSON array of review findings:
+- "type": "suggestion"
+- "title": Short title (max 80 chars) — e.g. "Improve: [automation name]"
+- "content": 3-5 sentences explaining the issue, why it matters, and the specific improvement
+- "metadata": { "entityIds": [...], "confidence": 0-1, "category": "automation_review", "automationYaml": "..." }
+
+For each automation, evaluate:
+1. **Reliability**: Missing error handling, no fallback if entity unavailable, race conditions with multiple triggers, missing conditions that could cause unexpected behavior
+2. **Optimization**: Redundant actions, unnecessary delays, triggers that fire too often, conditions that could be simplified
+3. **Missing conditions**: Time-of-day guards, presence detection, mode/scene awareness, state validation before action
+4. **Better triggers**: Could use a more appropriate trigger type, missing trigger variables, debounce opportunities
+5. **Action improvements**: Missing confirmations, could benefit from choose/if-then, parallel execution opportunities
+6. **Security**: Automations that unlock doors or disable security without sufficient conditions
+7. **Maintainability**: Hardcoded values that should be input_numbers/helpers, duplicated logic across automations
+
+automationYaml must contain the IMPROVED version of the automation as valid HA YAML.
+CRITICAL: Only use entity_ids that appear in the provided data. NEVER invent or assume entity_ids.
+Do NOT repeat dismissed suggestions from User Feedback.
+Return 0-10 findings sorted by impact (most impactful first). Empty array if all automations look good.
+Only valid JSON, no markdown fences.`;
+
+  const feedbackSection = formatFeedback(input.feedbackHistory);
+
+  const detailedAutomations = input.automations.map((a) => {
+    const status = a.enabled ? "enabled" : "disabled";
+    const triggered = a.lastTriggered
+      ? a.lastTriggered.toISOString().split("T")[0]
+      : "never triggered";
+    return `### ${a.alias || a.haAutomationId} [${status}, last: ${triggered}]
+${a.description ? `Description: ${a.description}` : ""}
+Triggers: ${JSON.stringify(a.triggerConfig, null, 2)}
+Conditions: ${JSON.stringify(a.conditionConfig, null, 2)}
+Actions: ${JSON.stringify(a.actionConfig, null, 2)}`;
+  }).join("\n\n");
+
+  const user = `## Home Overview
+${formatEntitySummary(input)}
+
+## Automations to Review (full configuration)
+${detailedAutomations || "No automations configured."}
+
+## Available Entities (for reference when suggesting improvements)
+${input.entities.map((e) => `- ${e.entityId} (${e.domain})${e.friendlyName ? ` "${e.friendlyName}"` : ""}${e.areaId ? ` [area: ${e.areaId}]` : ""} state=${e.lastState || "unknown"}`).join("\n")}
+
+## Entity Activity (last ${input.analysisWindowDays} days)
+${formatStats(input.dailyStats)}
+${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
+
+  return { system, user };
+}

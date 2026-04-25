@@ -24,12 +24,27 @@ function createDb() {
 // when DATABASE_URL is not yet available.
 let _db: ReturnType<typeof createDb> | undefined;
 
+function ensureDb() {
+  if (!_db) {
+    _db = createDb();
+  }
+  return _db;
+}
+
 export const db = new Proxy({} as ReturnType<typeof createDb>, {
   get(_target, prop, receiver) {
-    if (!_db) {
-      _db = createDb();
+    const real = ensureDb();
+    const value = Reflect.get(real, prop, receiver);
+    return typeof value === "function" ? value.bind(real) : value;
+  },
+  // DrizzleAdapter uses drizzle-orm's is() which walks the prototype chain to
+  // check entityKind. Delegate to the real instance so it passes the PgDatabase check.
+  getPrototypeOf() {
+    try {
+      return Object.getPrototypeOf(ensureDb());
+    } catch {
+      // During build time DATABASE_URL may not be set — fall back to plain object proto
+      return Object.prototype;
     }
-    const value = Reflect.get(_db, prop, receiver);
-    return typeof value === "function" ? value.bind(_db) : value;
   },
 });

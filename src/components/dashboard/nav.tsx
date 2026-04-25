@@ -20,9 +20,11 @@ import {
   Moon,
   Monitor,
   Sparkles,
-  Gauge,
   Layers,
   FileCode,
+  MapPin,
+  BookTemplate,
+  FlaskConical,
 } from "lucide-react";
 
 // Navigation items with HA-style icons
@@ -31,9 +33,11 @@ const NAV_ITEMS = [
   { href: "/insights", label: "Insights", icon: Lightbulb },
   { href: "/automations", label: "Automations", icon: Zap },
   { href: "/entities", label: "Entities", icon: Activity },
-  { href: "/energy", label: "Energy", icon: Gauge },
   { href: "/scenes", label: "Scenes", icon: Layers },
   { href: "/blueprints", label: "Blueprints", icon: FileCode },
+  { href: "/coverage", label: "Coverage", icon: MapPin },
+  { href: "/templates", label: "Templates", icon: BookTemplate },
+  { href: "/simulator", label: "Simulator", icon: FlaskConical },
   { href: "/ai-usage", label: "AI Usage", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

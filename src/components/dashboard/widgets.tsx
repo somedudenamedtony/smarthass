@@ -22,7 +22,6 @@ import {
   TrendingDown,
   Minus,
   Home,
-  Gauge,
   Wifi,
   WifiOff,
   ArrowRight,
@@ -392,102 +391,6 @@ export function ActivityWidget({
   );
 }
 
-// ─── Energy Widget ──────────────────────────────────────────────────────────
-
-interface EnergyData {
-  todayConsumption: number;
-  yesterdayConsumption: number;
-  weeklyAverage: number;
-  unit: string;
-  costEstimate?: number;
-}
-
-export function EnergyWidget({
-  widget,
-  instanceId,
-}: {
-  widget: Widget;
-  instanceId: string | null;
-}) {
-  const [energy, setEnergy] = useState<EnergyData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!instanceId) return;
-    fetch(`/api/energy/summary?instanceId=${instanceId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.summary) {
-          setEnergy(data.summary);
-        }
-      })
-      .catch(() => {
-        // Energy data may not be configured
-        setEnergy(null);
-      })
-      .finally(() => setLoading(false));
-  }, [instanceId]);
-
-  if (!energy) {
-    return (
-      <WidgetWrapper widget={widget} loading={loading}>
-        <div className="text-center py-4">
-          <Gauge className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">Energy monitoring not configured</p>
-          <Link href="/energy" className="text-xs text-primary hover:underline">
-            Set up energy tracking →
-          </Link>
-        </div>
-      </WidgetWrapper>
-    );
-  }
-
-  const changePercent = energy.yesterdayConsumption
-    ? ((energy.todayConsumption - energy.yesterdayConsumption) / energy.yesterdayConsumption) * 100
-    : 0;
-
-  return (
-    <WidgetWrapper widget={widget} loading={loading}>
-      <div className="space-y-4">
-        <div className="text-center">
-          <p className="text-3xl font-bold">
-            {energy.todayConsumption.toFixed(1)}
-            <span className="text-sm font-normal text-muted-foreground ml-1">{energy.unit}</span>
-          </p>
-          <p className="text-xs text-muted-foreground">Today&apos;s consumption</p>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-3 text-center">
-          <div>
-            <p className="text-sm font-medium">{energy.yesterdayConsumption.toFixed(1)}</p>
-            <p className="text-xs text-muted-foreground">Yesterday</p>
-          </div>
-          <div>
-            <div className="flex items-center justify-center gap-1">
-              {changePercent > 0 ? (
-                <TrendingUp className="h-3 w-3 text-destructive" />
-              ) : changePercent < 0 ? (
-                <TrendingDown className="h-3 w-3 text-success" />
-              ) : null}
-              <p className={`text-sm font-medium ${changePercent > 0 ? "text-destructive" : "text-success"}`}>
-                {changePercent > 0 ? "+" : ""}{changePercent.toFixed(1)}%
-              </p>
-            </div>
-            <p className="text-xs text-muted-foreground">vs Yesterday</p>
-          </div>
-        </div>
-
-        {energy.costEstimate !== undefined && (
-          <div className="text-center pt-2 border-t">
-            <p className="text-lg font-semibold">${energy.costEstimate.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground">Estimated cost today</p>
-          </div>
-        )}
-      </div>
-    </WidgetWrapper>
-  );
-}
-
 // ─── Areas Widget ───────────────────────────────────────────────────────────
 
 interface AreaData {
@@ -647,8 +550,6 @@ export function WidgetRenderer({
       return <InsightsWidget widget={widget} instanceId={instanceId} />;
     case "activity":
       return <ActivityWidget widget={widget} instanceId={instanceId} />;
-    case "energy":
-      return <EnergyWidget widget={widget} instanceId={instanceId} />;
     case "areas":
       return <AreasWidget widget={widget} instanceId={instanceId} />;
     case "quick_actions":

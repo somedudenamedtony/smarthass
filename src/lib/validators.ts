@@ -18,6 +18,7 @@ export const analysisBodySchema = z.object({
       "efficiency",
       "cross_device_correlation",
       "device_suggestions",
+      "automation_review",
     ])
     .optional(),
 });

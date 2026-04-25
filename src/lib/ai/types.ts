@@ -54,7 +54,8 @@ export interface AnalysisMetadata {
     | "automation_gap"
     | "efficiency"
     | "cross_device_correlation"
-    | "device_suggestion";
+    | "device_suggestion"
+    | "automation_review";
 }
 
 /** Input data shape for the analysis service */

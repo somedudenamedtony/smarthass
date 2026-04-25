@@ -165,6 +165,7 @@ export default function InsightsPage() {
     usage_patterns: "Usage Patterns",
     anomaly_detection: "Anomaly Detection",
     automation_gaps: "Automation Gaps",
+    automation_review: "Automation Review",
     efficiency: "Efficiency",
     cross_device_correlation: "Cross-Device Correlation",
     device_suggestions: "Device Suggestions",

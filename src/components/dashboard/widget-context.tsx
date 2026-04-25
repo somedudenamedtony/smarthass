@@ -20,7 +20,6 @@ export type WidgetType =
   | "insights"
   | "activity"
   | "health"
-  | "energy"
   | "heatmap"
   | "areas"
   | "quick_actions";
@@ -101,17 +100,6 @@ export const WIDGET_DEFINITIONS: Record<WidgetType, {
     minHeight: 1,
     maxHeight: 1,
     icon: "heart-pulse",
-  },
-  energy: {
-    label: "Energy",
-    description: "Energy consumption overview",
-    defaultWidth: 2,
-    defaultHeight: 2,
-    minWidth: 1,
-    maxWidth: 4,
-    minHeight: 1,
-    maxHeight: 2,
-    icon: "zap",
   },
   heatmap: {
     label: "Activity Heatmap",
