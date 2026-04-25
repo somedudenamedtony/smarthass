@@ -52,8 +52,8 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/src/db/migrations ./migrations
 
-# Copy add-on entrypoint (from repo root build context)
-COPY ha-addon/run.sh /run.sh
+# Copy add-on entrypoint (from ha-addon/ build context)
+COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
 EXPOSE 3000
