@@ -1,6 +1,10 @@
 name: SmartHass
 description: AI-powered Home Assistant analytics and automation suggestions. Analyzes entity data, detects anomalies, finds automation opportunities, and generates ready-to-deploy YAML configs — powered by Claude AI.
+<<<<<<< HEAD
 version: "1.4.2"
+=======
+version: "1.4.1"
+>>>>>>> b91a715988fd450ed94fbc6131b852158b3dc227
 slug: smarthass
 url: https://github.com/atonoy/SmartHass
 homeassistant_api: true

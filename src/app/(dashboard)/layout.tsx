@@ -27,12 +27,9 @@ export default async function DashboardLayout({
       {/* Desktop sidebar */}
       <DesktopSidebar email={session.user.email ?? null} />
 
-      {/* Main content */}
-      <main className="flex-1 p-3 md:p-5 relative overflow-x-hidden">
-        {/* Background ambient glow */}
-        <div className="fixed top-0 right-0 w-72 h-72 bg-primary/3 rounded-full blur-3xl pointer-events-none" />
-        <div className="fixed bottom-0 left-48 w-56 h-56 bg-chart-3/3 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10">{children}</div>
+      {/* Main content - extra bottom padding on mobile for bottom nav */}
+      <main className="flex-1 p-4 pb-24 md:p-6 md:pb-6 overflow-x-hidden">
+        {children}
       </main>
     </div>
   );

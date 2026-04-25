@@ -1,20 +1,70 @@
 # SmartHass
 
-AI-powered companion for Home Assistant. Connect your HA instance, and SmartHass will analyze your smart home data to provide insights, detect anomalies, identify automation opportunities, and suggest efficiency improvements — all powered by Claude AI.
+<div align="center">
 
-## Features
+**AI-Powered Analytics & Automation Companion for Home Assistant**
 
-- **Dashboard** — Overview metrics, D3.js charts (top entities, domain distribution), and activity feed
-- **Entity Management** — Browse, search, filter by domain, and track entities for daily stat aggregation
-- **Automation Browser** — View all HA automations with trigger/condition/action breakdowns
-- **AI Insights** — Four analysis types: usage patterns, anomaly detection, automation gaps, efficiency suggestions
-- **Automation Suggestions** — AI-generated HA automation YAML you can copy directly into your configuration
-- **Dual Deployment** — Run on Vercel (cloud, multi-user) or self-host with Docker (single-user, data stays local)
-- **Home Assistant Add-on** — Install directly in HA with continuous real-time sync via WebSocket
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://typescriptlang.org/)
+[![Anthropic Claude](https://img.shields.io/badge/AI-Claude-orange)](https://anthropic.com/)
+
+</div>
 
 ---
 
-## Home Assistant Add-on (Recommended)
+SmartHass connects to your Home Assistant instance, analyzes your smart home data, and uses Claude AI to provide actionable insights, detect anomalies, suggest automations, and identify efficiency improvements — all while keeping your data private.
+
+## ✨ Features
+
+### Dashboard & Analytics
+- **Overview Dashboard** — Instance health, key metrics, and activity feed at a glance
+- **Interactive Charts** — D3.js visualizations for entity activity, domain distribution, and usage patterns
+- **Activity Heatmap** — See when your smart home is most active by hour and day
+- **Trend Analysis** — Track entity behavior changes over time
+
+### Entity Management
+- **Entity Browser** — Search, filter, and browse all entities by domain
+- **Entity Tracking** — Mark important entities for detailed statistical tracking
+- **Daily Statistics** — Automated aggregation of state changes, active time, and value ranges
+- **Historical Retention** — Store data beyond Home Assistant's default 10-day limit
+
+### Automation Intelligence
+- **Automation Browser** — View all HA automations with trigger/condition/action breakdowns
+- **AI Suggestions** — Get ready-to-deploy automation YAML based on your usage patterns
+- **One-Click Deploy** — Push AI-generated automations directly to Home Assistant
+- **Last Triggered Tracking** — Monitor automation execution history
+
+### AI-Powered Insights
+| Analysis Type | Description |
+|---------------|-------------|
+| **Usage Patterns** | Identify daily/weekly routines and recurring behaviors |
+| **Anomaly Detection** | Flag unusual activity with statistical deviation analysis |
+| **Automation Gaps** | Find patterns that could be automated but aren't |
+| **Efficiency Insights** | Discover energy waste and underutilized devices |
+| **Cross-Device Correlations** | Uncover hidden relationships between devices |
+| **Device Recommendations** | Get suggestions for devices that complement your setup |
+
+### Security & Privacy
+- **AES-256-GCM Encryption** — HA access tokens encrypted at rest
+- **Local Data Option** — Self-host to keep all data on your network
+- **No Telemetry** — Zero data collection beyond your explicit consent
+
+---
+
+## 🏠 Deployment Options
+
+SmartHass supports three deployment modes to fit your needs:
+
+| Mode | Best For | Data Location | HA Access |
+|------|----------|---------------|-----------|
+| **Home Assistant Add-on** | Most users | Local (in add-on) | Automatic |
+| **Docker Self-Hosted** | Privacy-focused users | Local (your server) | Local network |
+| **Vercel Cloud** | Multi-user/SaaS | Neon Postgres | Public URL required |
+
+---
+
+## 🚀 Home Assistant Add-on (Recommended)
 
 The easiest way to run SmartHass — install it as a native Home Assistant add-on. Data syncs in real-time via WebSocket, authentication is handled by HA, and PostgreSQL is bundled inside the container.
 
@@ -27,109 +77,122 @@ The easiest way to run SmartHass — install it as a native Home Assistant add-o
 5. In the add-on **Configuration** tab, set your **Anthropic API Key**
 6. Click **Start** — SmartHass auto-configures and opens in the sidebar
 
-### How it works
+### How It Works
 
-- **Real-time sync** — Entity state changes stream via HA WebSocket (no polling)
-- **Daily reconciliation** — New entities and automations are picked up automatically
-- **No separate login** — Authentication is handled by HA Ingress
-- **Local data** — PostgreSQL runs inside the add-on container, data stored in `/data`
+| Feature | Description |
+|---------|-------------|
+| **Real-time Sync** | Entity state changes stream via HA WebSocket (no polling) |
+| **Daily Reconciliation** | New entities and automations are picked up automatically |
+| **Seamless Auth** | No separate login — authentication handled by HA Ingress |
+| **Local Storage** | PostgreSQL runs inside the add-on, data stored in `/data` |
+| **Auto-Discovery** | Connects to HA via Supervisor API automatically |
+
+### Add-on Configuration
+
+```yaml
+anthropic_api_key: "sk-ant-..."   # Required: Your Anthropic API key
+analysis_schedule: "0 4 * * 0"    # Optional: Weekly analysis cron (default: Sunday 4am)
+sync_schedule: "0 3 * * *"        # Optional: Daily sync cron (default: 3am daily)
+```
 
 ---
 
-## Quick Start (Self-Hosted with Docker)
+## 🐳 Docker Self-Hosted Setup
 
-This is the recommended way to get started. All data stays on your network.
+For users who want full control over their data and deployment.
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2+
 - A Home Assistant instance accessible on your network
-- An [Anthropic API key](https://console.anthropic.com/) (for AI features)
+- An [Anthropic API key](https://console.anthropic.com/) for AI features
 
-### 1. Clone and configure
+### Quick Start
 
 ```bash
+# Clone the repository
 git clone https://github.com/somedudenamedtony/smarthass.git
 cd smarthass
+
+# Copy and configure environment
 cp .env.example .env
 ```
 
-Edit `.env` and set the required values:
+Edit `.env` with required values:
 
 ```env
+# Deployment
 DEPLOY_MODE=self-hosted
+
+# Database (bundled Postgres)
 DATABASE_URL=postgresql://smarthass:smarthass@db:5432/smarthass
-AUTH_SECRET=<generate below>
-ENCRYPTION_KEY=<generate below>
-ANTHROPIC_API_KEY=<your Anthropic API key>
+
+# Security (generate these!)
+AUTH_SECRET=<generate-with-openssl-rand-base64-32>
+ENCRYPTION_KEY=<generate-with-openssl-rand-hex-32>
+
+# AI
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# Optional: Custom schedules
+DAILY_SYNC_CRON="0 3 * * *"
+WEEKLY_ANALYSIS_CRON="0 4 * * 0"
 ```
 
-Generate the secrets:
+Generate secure secrets:
 
 ```bash
-# AUTH_SECRET — random string for session signing
-npx auth secret
-# or: openssl rand -base64 32
+# AUTH_SECRET — session signing key
+openssl rand -base64 32
 
-# ENCRYPTION_KEY — 32-byte hex key for HA token encryption
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-# or: openssl rand -hex 32
+# ENCRYPTION_KEY — 32-byte hex key for token encryption
+openssl rand -hex 32
 ```
 
-### 2. Start the stack
+Start the stack:
 
 ```bash
 docker compose up -d
 ```
 
-This starts the Next.js app on port 3000 and a Postgres 16 database.
+### Initial Setup
 
-### 3. Create your admin account
+1. Open [http://localhost:3000/setup](http://localhost:3000/setup)
+2. Create your admin account (email + password)
+3. Go to **Settings** → **Add Instance**
+4. Enter your HA URL: `http://homeassistant.local:8123` (or IP address)
+5. Enter your Long-Lived Access Token ([how to get one](#getting-a-home-assistant-access-token))
+6. Click **Test Connection** then **Save**
 
-Open [http://localhost:3000/setup](http://localhost:3000/setup) and create your admin account.
+### Docker Compose Services
 
-### 4. Connect Home Assistant
+| Service | Description | Port |
+|---------|-------------|------|
+| `smarthass` | Next.js application | 3000 |
+| `db` | PostgreSQL 16 database | 5432 (internal) |
 
-1. Go to **Settings** in the sidebar
-2. Click **Add Instance**
-3. Enter your HA URL (e.g., `http://homeassistant.local:8123` or `http://192.168.1.x:8123`)
-4. Enter a **Long-Lived Access Token** (see [how to create one](#getting-a-home-assistant-access-token))
-5. SmartHass will verify the connection and sync your entities
+### Updating
 
-### 5. Get AI insights
-
-- Go to **Insights** and click **Analyze Now** to run an on-demand AI analysis
-- Insights also run automatically on a weekly schedule (configurable in `.env`)
-
----
-
-## Getting a Home Assistant Access Token
-
-1. In Home Assistant, click your user profile (bottom-left)
-2. Scroll to **Long-Lived Access Tokens**
-3. Click **Create Token**, give it a name like "SmartHass"
-4. Copy the token — you'll only see it once
-
-The token is encrypted (AES-256-GCM) before being stored in the database.
+```bash
+git pull
+docker compose pull
+docker compose up -d --build
+```
 
 ---
 
-## Cloud Deployment (Vercel + Neon)
+## ☁️ Vercel Cloud Deployment
 
 For multi-user deployment with OAuth authentication.
 
 ### Prerequisites
 
 - [Vercel](https://vercel.com) account
-- [Neon](https://neon.tech) Postgres database
+- [Neon](https://neon.tech) Postgres database (or any Postgres)
 - GitHub and/or Google OAuth app credentials
 - Anthropic API key
 
-### Steps
-
-1. Fork this repository
-2. Create a Neon database and copy the connection string
-3. Set environment variables in Vercel:
+### Environment Variables
 
 ```env
 DEPLOY_MODE=cloud
@@ -144,10 +207,27 @@ ANTHROPIC_API_KEY=<your Anthropic API key>
 CRON_SECRET=<random string for cron endpoint auth>
 ```
 
-4. Deploy to Vercel — cron jobs for daily sync and weekly analysis are configured in `vercel.json`
-5. Push the database schema: `npx drizzle-kit push`
+### Steps
 
-> **Note:** Cloud mode requires your HA instance to be publicly accessible (via Nabu Casa, DuckDNS, or a reverse proxy). Self-hosted mode works with local network URLs.
+1. Fork this repository
+2. Create a Neon database and copy the connection string
+3. Set environment variables in Vercel dashboard
+4. Deploy — cron jobs are configured in `vercel.json`
+5. Run migrations: `npx drizzle-kit push`
+
+> **Important:** Cloud mode requires your HA instance to be publicly accessible via Nabu Casa, DuckDNS, or a reverse proxy. Self-hosted mode works with local network URLs.
+
+---
+
+## 🔑 Getting a Home Assistant Access Token
+
+1. In Home Assistant, click your **user profile** (bottom-left of sidebar)
+2. Scroll to **Long-Lived Access Tokens** section
+3. Click **Create Token**
+4. Name it "SmartHass" and click **OK**
+5. **Copy the token immediately** — you won't see it again
+
+The token is encrypted with AES-256-GCM before storage. SmartHass only uses it for read access and deploying automations.
 
 ---
 
@@ -173,97 +253,343 @@ Open [http://localhost:3000](http://localhost:3000). Visit `/setup` on first run
 
 ---
 
-## Environment Variables
+## 📊 Using SmartHass
 
-See [`.env.example`](.env.example) for the full annotated list. Key variables:
+### Dashboard Overview
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DEPLOY_MODE` | Yes | `cloud`, `self-hosted`, or `home-assistant` |
-| `DATABASE_URL` | Yes | Postgres connection string |
-| `AUTH_SECRET` | Yes | Session signing secret |
-| `ENCRYPTION_KEY` | Yes | 32-byte hex key for AES-256-GCM token encryption |
-| `ANTHROPIC_API_KEY` | For AI | Anthropic API key for Claude analysis |
-| `AUTH_GITHUB_ID/SECRET` | Cloud only | GitHub OAuth credentials |
-| `AUTH_GOOGLE_ID/SECRET` | Cloud only | Google OAuth credentials |
-| `CRON_SECRET` | Cloud only | Auth secret for Vercel Cron endpoints |
-| `SYNC_CRON_SCHEDULE` | Optional | Daily sync cron (default: `0 3 * * *`) |
-| `ANALYSIS_CRON_SCHEDULE` | Optional | Weekly analysis cron (default: `0 4 * * 0`) |
+The main dashboard provides at-a-glance metrics:
+
+- **Instance Status** — Connection health and HA version
+- **Entity Count** — Total entities synced from HA
+- **Active Automations** — Number of enabled automations
+- **Tracked Entities** — Entities marked for detailed tracking
+- **State Changes** — Activity over the selected time period
+
+### Entity Tracking
+
+Mark entities as "tracked" to collect detailed statistics:
+
+1. Go to **Entities** in the sidebar
+2. Find the entity you want to track
+3. Toggle the **Track** switch
+
+Tracked entities get daily statistics including:
+- State change count
+- Active time duration
+- Min/max/average values (for numeric sensors)
+- Hourly activity breakdown
+- State distribution
+
+### Running AI Analysis
+
+**On-Demand Analysis:**
+1. Go to **Dashboard** or **Insights**
+2. Click **Sync & Analyze**
+3. Wait for sync and AI processing (~30-60 seconds)
+4. Review insights in the feed
+
+**Scheduled Analysis:**
+- **Daily Sync**: Runs at 3 AM (configurable) to sync entities and automations
+- **Weekly Analysis**: Runs Sundays at 4 AM (configurable) to generate AI insights
+
+### Deploying Automation Suggestions
+
+When AI suggests an automation:
+
+1. Review the suggestion card on the Insights page
+2. Click **View Details** to see the full YAML
+3. Click **Deploy to HA** to push it to your Home Assistant
+4. The automation appears in your HA automations list
+5. Enable/disable it from HA's Automations page
 
 ---
 
-## Tech Stack
+## 🔧 Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DEPLOY_MODE` | Yes | — | `cloud`, `self-hosted`, or `home-assistant` |
+| `DATABASE_URL` | Yes | — | PostgreSQL connection string |
+| `AUTH_SECRET` | Yes | — | NextAuth.js session signing secret (32+ chars) |
+| `ENCRYPTION_KEY` | Yes | — | 32-byte hex key for AES-256-GCM token encryption |
+| `ANTHROPIC_API_KEY` | For AI | — | Anthropic API key for Claude analysis |
+| `AUTH_GITHUB_ID` | Cloud | — | GitHub OAuth app ID |
+| `AUTH_GITHUB_SECRET` | Cloud | — | GitHub OAuth app secret |
+| `AUTH_GOOGLE_ID` | Cloud | — | Google OAuth client ID |
+| `AUTH_GOOGLE_SECRET` | Cloud | — | Google OAuth client secret |
+| `CRON_SECRET` | Cloud | — | Auth secret for Vercel Cron endpoints |
+| `DAILY_SYNC_CRON` | No | `0 3 * * *` | Daily sync schedule (cron expression) |
+| `WEEKLY_ANALYSIS_CRON` | No | `0 4 * * 0` | Weekly analysis schedule (cron expression) |
+| `ANALYSIS_WINDOW_DAYS` | No | `7` | Days of history to include in AI analysis |
+| `LOG_LEVEL` | No | `info` | Logging verbosity (`debug`, `info`, `warn`, `error`) |
+
+---
+
+## 🛠️ Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 16 (App Router), React 19, shadcn/ui, Tailwind CSS v4, D3.js |
-| Backend | Next.js API Routes (Node.js runtime) |
-| Auth | NextAuth.js v5 — OAuth for cloud, credentials for self-hosted |
-| Database | Postgres via Drizzle ORM (Neon HTTP driver for cloud, node-postgres for self-hosted) |
-| AI | Anthropic Claude — Sonnet 4 for analysis, Haiku 4 for classification |
-| Scheduling | Vercel Cron (cloud) / node-cron (self-hosted / HA add-on) |
-| Infrastructure | Docker + Docker Compose (self-hosted), Vercel (cloud), HA Add-on (home-assistant) |
+| **Frontend** | Next.js 16 (App Router), React 19, shadcn/ui, Tailwind CSS v4, D3.js |
+| **Backend** | Next.js API Routes (Node.js runtime) |
+| **Auth** | NextAuth.js v5 — OAuth for cloud, credentials for self-hosted, Supervisor for HA add-on |
+| **Database** | PostgreSQL via Drizzle ORM (Neon HTTP for cloud, node-postgres for self-hosted) |
+| **AI** | Anthropic Claude — Sonnet 4 for analysis, Haiku 4 for classification |
+| **Scheduling** | Vercel Cron (cloud) / node-cron (self-hosted) |
+| **Real-Time** | WebSocket connection to HA for live state updates (self-hosted/add-on only) |
 
-## Architecture
+---
 
-```
-┌─────────────────────┐     ┌──────────────────┐
-│  SmartHass Frontend  │────▶│  Next.js API      │
-│  (React + D3.js)     │     │  Routes           │
-└─────────────────────┘     └────────┬─────────┘
-                                     │
-                      ┌──────────────┼──────────────┐
-                      │              │              │
-                ┌─────▼────┐  ┌─────▼────┐  ┌─────▼────────┐
-                │ Postgres  │  │  Claude   │  │ Home         │
-                │ (Drizzle) │  │  API      │  │ Assistant    │
-                └──────────┘  └──────────┘  │ (REST API)   │
-                                            └──────────────┘
-```
-
-## Project Structure
+## 📁 Project Structure
 
 ```
-src/
-├── app/
-│   ├── (dashboard)/     # Dashboard pages (entities, automations, insights, settings)
-│   ├── api/             # API routes (HA proxy, analysis, insights, cron, setup)
-│   ├── login/           # Login page
-│   └── setup/           # First-run setup wizard
-├── components/
-│   ├── ui/              # shadcn/ui components
-│   ├── charts/          # D3.js chart components
-│   ├── insights/        # Insight card components
-│   ├── dashboard/       # Responsive nav
-│   └── settings/        # HA instance management
-├── db/
-│   ├── schema.ts        # Drizzle ORM schema (10 tables, 4 enums)
-│   └── index.ts         # Conditional DB client (Neon / node-postgres)
-├── lib/
-│   ├── ai/              # AI analysis engine (prompts, service, types, YAML)
-│   ├── ha-client.ts     # Home Assistant REST API client
-│   ├── ha-websocket.ts  # HA WebSocket connection for real-time state sync
-│   ├── state-aggregator.ts # In-memory state aggregation with periodic DB flush
-│   ├── sync-service.ts  # Entity sync, automation sync, daily stats
-│   ├── encryption.ts    # AES-256-GCM token encryption
-│   ├── rate-limit.ts    # In-memory rate limiter
-│   ├── scheduler.ts     # Conditional cron scheduler
-│   └── config.ts        # Deploy mode detection
-├── auth.ts              # NextAuth.js v5 configuration
-└── middleware.ts         # Auth middleware
+smarthass/
+├── src/
+│   ├── app/
+│   │   ├── (dashboard)/      # Protected dashboard routes
+│   │   │   ├── dashboard/    # Main overview page
+│   │   │   ├── entities/     # Entity browser & details
+│   │   │   ├── automations/  # Automation browser
+│   │   │   ├── insights/     # AI insights feed
+│   │   │   ├── ai-usage/     # Token usage tracking
+│   │   │   └── settings/     # Instance & config management
+│   │   ├── api/              # API routes
+│   │   │   ├── analysis/     # AI analysis endpoint
+│   │   │   ├── automations/  # Automation CRUD + deploy
+│   │   │   ├── cron/         # Scheduled job endpoints
+│   │   │   ├── dashboard/    # Dashboard data endpoints
+│   │   │   ├── entities/     # Entity data endpoints
+│   │   │   ├── ha/           # HA instance management
+│   │   │   ├── insights/     # Insights CRUD
+│   │   │   └── settings/     # App settings
+│   │   ├── login/            # Login page
+│   │   └── setup/            # Initial setup wizard
+│   ├── components/
+│   │   ├── ui/               # shadcn/ui components
+│   │   ├── charts/           # D3.js visualizations
+│   │   ├── dashboard/        # Dashboard-specific components
+│   │   ├── insights/         # Insight card components
+│   │   └── settings/         # Settings form components
+│   ├── db/
+│   │   ├── schema.ts         # Drizzle ORM schema
+│   │   ├── index.ts          # Database client
+│   │   └── migrations/       # SQL migrations
+│   └── lib/
+│       ├── ai/               # AI analysis engine
+│       │   ├── analysis-service.ts   # Main analysis orchestration
+│       │   ├── prompts.ts            # Claude prompt templates
+│       │   ├── automation-yaml.ts    # YAML generation
+│       │   └── types.ts              # AI response types
+│       ├── ha-client.ts      # HA REST API client
+│       ├── ha-websocket.ts   # HA WebSocket client
+│       ├── sync-service.ts   # Data synchronization
+│       ├── encryption.ts     # Token encryption
+│       └── config.ts         # Environment configuration
+├── ha-addon/                 # Home Assistant add-on files
+│   ├── config.yaml           # Add-on manifest
+│   ├── Dockerfile            # Add-on container
+│   └── DOCS.md               # Add-on documentation
+├── docker-compose.yml        # Self-hosted deployment
+├── Dockerfile                # Application container
+└── drizzle.config.ts         # Database migration config
 ```
 
-## AI Analysis
+---
 
-SmartHass runs four types of analysis on your smart home data:
+## 🔌 API Reference
 
-1. **Usage Patterns** — Identifies recurring patterns in device usage (e.g., "lights turn on at 6pm daily")
-2. **Anomaly Detection** — Flags unusual activity (e.g., "garage door opened at 3am")
-3. **Automation Gaps** — Suggests new automations based on observed manual patterns
-4. **Efficiency Insights** — Identifies energy waste, redundant automations, and optimization opportunities
+### Dashboard Endpoints
 
-Analysis runs automatically on a weekly schedule, or on-demand via the **Analyze Now** button on the Insights page. Results include confidence scores, relevant entity references, and for automation suggestions — ready-to-use HA YAML you can copy into your `automations.yaml`.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/dashboard/stats` | GET | Overview metrics (entities, automations, activity) |
+| `/api/dashboard/top-entities` | GET | Most active entities by state changes |
+| `/api/dashboard/preferences` | GET/PATCH | User dashboard preferences |
 
-## License
+### Entity Endpoints
 
-[MIT](LICENSE)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/entities` | GET | List entities (filterable by domain, tracked status) |
+| `/api/entities/[id]` | GET | Entity details with daily stats |
+| `/api/entities/[id]` | PATCH | Update entity (toggle tracking) |
+
+### Automation Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/automations` | GET | List synced automations |
+| `/api/automations/[id]` | GET | Automation details |
+| `/api/automations/deploy` | POST | Deploy AI suggestion to HA |
+| `/api/automations/deploy` | DELETE | Remove deployed automation |
+
+### Analysis Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/analysis` | POST | Trigger on-demand AI analysis |
+| `/api/insights` | GET | List AI insights (filterable by type, status) |
+| `/api/insights/[id]` | PATCH | Update insight status (viewed, dismissed, applied) |
+| `/api/ai-usage` | GET | Token usage statistics |
+
+### HA Instance Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/ha/instances` | GET | List connected HA instances |
+| `/api/ha/instances` | POST | Add new HA instance |
+| `/api/ha/instances/[id]` | DELETE | Remove HA instance |
+| `/api/ha/sync` | POST | Trigger manual sync |
+
+---
+
+## 🧠 AI Analysis Details
+
+SmartHass uses Claude AI to analyze your smart home data across six categories:
+
+### Analysis Types
+
+| Type | Description | Example Output |
+|------|-------------|----------------|
+| **Usage Patterns** | Recurring behaviors and routines | "Living room lights turn on at 6pm on weekdays (92% confidence)" |
+| **Anomaly Detection** | Unusual or unexpected activity | "Garage door opened at 3:14 AM — unusual for this time" |
+| **Automation Gaps** | Manual patterns that could be automated | "You manually turn off kitchen lights every night at 11pm" |
+| **Efficiency Insights** | Energy waste and optimization opportunities | "Office AC runs while no motion detected for 4+ hours" |
+| **Cross-Device Correlations** | Relationships between devices | "Motion sensor triggers lights 94% of the time within 2 minutes" |
+| **Device Recommendations** | Complementary device suggestions | "Consider a smart plug for the coffee maker you turn on daily" |
+
+### How Analysis Works
+
+1. **Data Collection** — Aggregates daily stats for tracked entities over the analysis window (default: 7 days)
+2. **Context Building** — Compiles entity metadata, automation configs, and historical baselines
+3. **AI Processing** — Sends structured prompt to Claude with token budgeting and caching
+4. **Result Storage** — Parses JSON response and stores insights with metadata
+5. **Delta Detection** — Skips analysis if data hasn't changed (SHA256 hash comparison)
+
+### Token Usage
+
+AI analysis consumes Anthropic API tokens:
+
+- **Sonnet 4** — Main analysis (~$3/1M input, ~$15/1M output)
+- **Haiku 4** — Classification tasks (~$0.25/1M input, ~$1.25/1M output)
+
+Typical analysis run: 5,000-15,000 input tokens, 1,000-3,000 output tokens
+
+Track usage on the **AI Usage** page.
+
+---
+
+## ❓ Troubleshooting
+
+### Connection Issues
+
+**"Cannot connect to Home Assistant"**
+- Verify the URL is accessible from where SmartHass is running
+- For Docker: use `host.docker.internal` or actual IP instead of `localhost`
+- For cloud deployment: ensure HA is publicly accessible (Nabu Casa, DuckDNS, reverse proxy)
+- Check your Long-Lived Access Token hasn't expired
+
+**"WebSocket disconnected"**
+- WebSocket is only available in self-hosted/add-on mode
+- Check HA logs for connection errors
+- Verify no firewall blocking WebSocket connections
+
+### Sync Issues
+
+**"No entities found"**
+- Run a manual sync from Settings
+- Check HA connection status
+- Verify the access token has sufficient permissions
+
+**"Daily stats not updating"**
+- Check the sync schedule in Settings
+- For Docker: verify the container hasn't restarted (loses in-memory state)
+- Check logs: `docker compose logs smarthass`
+
+### AI Analysis Issues
+
+**"Analysis failed: API error"**
+- Verify your Anthropic API key is valid
+- Check you have sufficient API credits
+- Try a smaller analysis window if hitting token limits
+
+**"No new insights generated"**
+- Analysis skips if data hasn't changed significantly
+- Try tracking more entities for richer analysis
+- Wait for more historical data to accumulate
+
+---
+
+## 🗺️ Roadmap
+
+See [PLAN.md](PLAN.md) for the detailed product roadmap including:
+
+- **Phase 1**: Home Assistant Native Experience — Match HA's design language
+- **Phase 2**: Real-Time Intelligence — Live anomaly detection and pattern learning
+- **Phase 3**: Deeper HA Integration — Areas, blueprints, energy dashboard
+- **Phase 4**: User-Centric Features — Goals, schedules, household profiles
+- **Phase 5**: Performance & Scale — Optimizations for low-power hardware
+- **Phase 6**: Advanced AI — Local LLM support, conversational interface
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+### Development Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Set up environment
+cp .env.example .env
+# Configure DATABASE_URL, AUTH_SECRET, ENCRYPTION_KEY, ANTHROPIC_API_KEY
+
+# Start local Postgres (or use existing)
+docker run -d --name smarthass-db -e POSTGRES_PASSWORD=smarthass -e POSTGRES_USER=smarthass -e POSTGRES_DB=smarthass -p 5432:5432 postgres:16
+
+# Push schema
+npx drizzle-kit push
+
+# Start dev server
+npm run dev
+```
+
+### Code Style
+
+- TypeScript strict mode enabled
+- ESLint with recommended rules
+- Prettier for formatting
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- [Home Assistant](https://www.home-assistant.io/) — The best open-source home automation platform
+- [Anthropic](https://www.anthropic.com/) — Claude AI powers our analysis
+- [shadcn/ui](https://ui.shadcn.com/) — Beautiful UI components
+- [Drizzle ORM](https://orm.drizzle.team/) — Type-safe database queries
+- [Next.js](https://nextjs.org/) — The React framework for production
+
+---
+
+<div align="center">
+
+**Made with ❤️ for the Home Assistant community**
+
+[Report Bug](https://github.com/somedudenamedtony/smarthass/issues) · [Request Feature](https://github.com/somedudenamedtony/smarthass/issues) · [Documentation](https://github.com/somedudenamedtony/smarthass/wiki)
+
+</div>

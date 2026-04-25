@@ -41,6 +41,14 @@
   --color-card: var(--card);
   --color-accent-warm: var(--accent-warm);
   --color-accent-warm-foreground: var(--accent-warm-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-energy: var(--energy);
+  --color-energy-foreground: var(--energy-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -50,42 +58,141 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Refined dark theme — slate-blue palette */
+/* ─── Home Assistant Inspired Dark Theme ─────────────────────────────────────
+   Aligned with HA's Material Design 3 color system
+   Primary: HA Blue (#03A9F4)
+   Surfaces: Dark grays with subtle blue undertones
+──────────────────────────────────────────────────────────────────────────────*/
+
 :root {
-  --background: oklch(0.14 0.004 265);
-  --foreground: oklch(0.95 0.006 265);
-  --card: oklch(0.18 0.006 265);
-  --card-foreground: oklch(0.95 0.006 265);
-  --popover: oklch(0.18 0.006 265);
-  --popover-foreground: oklch(0.95 0.006 265);
-  --primary: oklch(0.65 0.14 250);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.23 0.008 265);
-  --secondary-foreground: oklch(0.90 0.006 265);
-  --muted: oklch(0.22 0.006 265);
-  --muted-foreground: oklch(0.63 0.012 265);
-  --accent: oklch(0.24 0.012 265);
-  --accent-foreground: oklch(0.95 0.006 265);
-  --destructive: oklch(0.58 0.20 27);
-  --border: oklch(0.28 0.008 265);
-  --input: oklch(0.24 0.008 265);
-  --ring: oklch(0.60 0.13 250);
-  --chart-1: oklch(0.65 0.14 250);
-  --chart-2: oklch(0.68 0.12 170);
-  --chart-3: oklch(0.62 0.14 305);
-  --chart-4: oklch(0.72 0.12 150);
-  --chart-5: oklch(0.72 0.12 70);
-  --accent-warm: oklch(0.72 0.12 70);
-  --accent-warm-foreground: oklch(0.15 0.02 70);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.155 0.005 265);
-  --sidebar-foreground: oklch(0.88 0.006 265);
-  --sidebar-primary: oklch(0.65 0.14 250);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.22 0.012 265);
-  --sidebar-accent-foreground: oklch(0.95 0.006 265);
-  --sidebar-border: oklch(0.27 0.008 265);
-  --sidebar-ring: oklch(0.60 0.13 250);
+  /* Base colors - HA dark theme inspired */
+  --background: #111318;
+  --foreground: #e1e2e8;
+  
+  /* Cards & surfaces */
+  --card: #1c1c23;
+  --card-foreground: #e1e2e8;
+  --popover: #1c1c23;
+  --popover-foreground: #e1e2e8;
+  
+  /* Primary - HA Blue */
+  --primary: #03a9f4;
+  --primary-foreground: #ffffff;
+  
+  /* Secondary */
+  --secondary: #282830;
+  --secondary-foreground: #c9cad0;
+  
+  /* Muted */
+  --muted: #232329;
+  --muted-foreground: #8e9099;
+  
+  /* Accent */
+  --accent: #2d2d36;
+  --accent-foreground: #e1e2e8;
+  
+  /* Destructive - HA Red */
+  --destructive: #f44336;
+  --destructive-foreground: #ffffff;
+  
+  /* Semantic colors - HA style */
+  --success: #4caf50;
+  --success-foreground: #ffffff;
+  --warning: #ff9800;
+  --warning-foreground: #000000;
+  --info: #2196f3;
+  --info-foreground: #ffffff;
+  --energy: #ffc107;
+  --energy-foreground: #000000;
+  
+  /* Borders & inputs */
+  --border: #3a3a44;
+  --input: #282830;
+  --ring: #03a9f4;
+  
+  /* Chart colors - HA accent palette */
+  --chart-1: #03a9f4;
+  --chart-2: #4caf50;
+  --chart-3: #ff9800;
+  --chart-4: #9c27b0;
+  --chart-5: #00bcd4;
+  
+  /* Accent warm (for highlights) */
+  --accent-warm: #ff9800;
+  --accent-warm-foreground: #000000;
+  
+  /* Radius - slightly larger for HA style */
+  --radius: 0.75rem;
+  
+  /* Sidebar - HA drawer style */
+  --sidebar: #18181f;
+  --sidebar-foreground: #c9cad0;
+  --sidebar-primary: #03a9f4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #282830;
+  --sidebar-accent-foreground: #e1e2e8;
+  --sidebar-border: #3a3a44;
+  --sidebar-ring: #03a9f4;
+}
+
+/* ─── Light Theme ────────────────────────────────────────────────────────────
+   For users who prefer light mode (many HA users do)
+──────────────────────────────────────────────────────────────────────────────*/
+
+.light {
+  --background: #fafafa;
+  --foreground: #1a1a1a;
+  
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  
+  --primary: #03a9f4;
+  --primary-foreground: #ffffff;
+  
+  --secondary: #f5f5f5;
+  --secondary-foreground: #424242;
+  
+  --muted: #f0f0f0;
+  --muted-foreground: #757575;
+  
+  --accent: #e3f2fd;
+  --accent-foreground: #1a1a1a;
+  
+  --destructive: #f44336;
+  --destructive-foreground: #ffffff;
+  
+  --success: #4caf50;
+  --success-foreground: #ffffff;
+  --warning: #ff9800;
+  --warning-foreground: #000000;
+  --info: #2196f3;
+  --info-foreground: #ffffff;
+  --energy: #ffc107;
+  --energy-foreground: #000000;
+  
+  --border: #e0e0e0;
+  --input: #f5f5f5;
+  --ring: #03a9f4;
+  
+  --chart-1: #03a9f4;
+  --chart-2: #4caf50;
+  --chart-3: #ff9800;
+  --chart-4: #9c27b0;
+  --chart-5: #00bcd4;
+  
+  --accent-warm: #ff9800;
+  --accent-warm-foreground: #000000;
+  
+  --sidebar: #ffffff;
+  --sidebar-foreground: #424242;
+  --sidebar-primary: #03a9f4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e3f2fd;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e0e0e0;
+  --sidebar-ring: #03a9f4;
 }
 
 @layer base {
@@ -94,59 +201,242 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
 }
 
-/* Glow effects */
+/* ─── HA-Style Utility Classes ───────────────────────────────────────────────*/
+
 @layer utilities {
-  .glow-sm {
-    box-shadow: 0 0 12px -3px oklch(0.65 0.14 250 / 0.25);
+  /* State indicator colors */
+  .state-on {
+    color: var(--success);
   }
-  .glow-md {
-    box-shadow: 0 0 20px -5px oklch(0.65 0.14 250 / 0.3);
+  .state-off {
+    color: var(--muted-foreground);
   }
-  .glow-lg {
-    box-shadow: 0 0 40px -8px oklch(0.65 0.14 250 / 0.25);
+  .state-unavailable {
+    color: var(--destructive);
   }
-  .glow-destructive {
-    box-shadow: 0 0 20px -5px oklch(0.58 0.20 27 / 0.35);
+  
+  /* Domain colors - matching HA */
+  .domain-light {
+    --domain-color: #ffc107;
   }
-  .glow-warm {
-    box-shadow: 0 0 20px -5px oklch(0.72 0.12 70 / 0.3);
+  .domain-switch {
+    --domain-color: #03a9f4;
   }
+  .domain-climate {
+    --domain-color: #ff5722;
+  }
+  .domain-sensor {
+    --domain-color: #9c27b0;
+  }
+  .domain-binary_sensor {
+    --domain-color: #00bcd4;
+  }
+  .domain-cover {
+    --domain-color: #795548;
+  }
+  .domain-lock {
+    --domain-color: #607d8b;
+  }
+  .domain-media_player {
+    --domain-color: #e91e63;
+  }
+  .domain-fan {
+    --domain-color: #00bcd4;
+  }
+  .domain-vacuum {
+    --domain-color: #009688;
+  }
+  .domain-automation {
+    --domain-color: #ff9800;
+  }
+  .domain-scene {
+    --domain-color: #8bc34a;
+  }
+  .domain-script {
+    --domain-color: #3f51b5;
+  }
+  
+  /* Subtle shadows - HA style */
+  .shadow-ha {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  .shadow-ha-lg {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+  }
+  
+  /* Card hover effect */
+  .card-interactive {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* HA-style ripple effect */
+  .ripple {
+    position: relative;
+    overflow: hidden;
+  }
+  .ripple::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .ripple:active::after {
+    opacity: 0.1;
+  }
+  
+  /* Glass effects - simplified for HA look */
   .glass {
-    background: oklch(0.18 0.006 265 / 0.6);
+    background: rgba(28, 28, 35, 0.8);
     backdrop-filter: blur(12px);
-    border: 1px solid oklch(1 0 0 / 0.06);
+    border: 1px solid var(--border);
   }
   .glass-strong {
-    background: oklch(0.18 0.006 265 / 0.85);
+    background: rgba(28, 28, 35, 0.95);
     backdrop-filter: blur(20px);
-    border: 1px solid oklch(1 0 0 / 0.08);
+    border: 1px solid var(--border);
   }
-  .gradient-border {
-    border-image: linear-gradient(135deg, oklch(0.65 0.14 250), oklch(0.62 0.14 305)) 1;
+  
+  /* Light mode glass */
+  .light .glass {
+    background: rgba(255, 255, 255, 0.9);
   }
+  .light .glass-strong {
+    background: rgba(255, 255, 255, 0.98);
+  }
+  
+  /* Status badge colors */
+  .badge-success {
+    background: var(--success);
+    color: var(--success-foreground);
+  }
+  .badge-warning {
+    background: var(--warning);
+    color: var(--warning-foreground);
+  }
+  .badge-error {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+  }
+  .badge-info {
+    background: var(--info);
+    color: var(--info-foreground);
+  }
+  
+  /* Energy colors */
+  .energy-low {
+    color: var(--success);
+  }
+  .energy-medium {
+    color: var(--warning);
+  }
+  .energy-high {
+    color: var(--destructive);
+  }
+  
+  /* Gradient text - HA primary */
   .text-gradient {
-    background: linear-gradient(135deg, oklch(0.70 0.14 250), oklch(0.68 0.14 305));
+    background: linear-gradient(135deg, #03a9f4, #00bcd4);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  .animate-glow-pulse {
-    animation: glow-pulse 3s ease-in-out infinite;
+  
+  /* Pulse animations */
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
+  
   .animate-fade-up {
-    animation: fade-up 0.5s ease-out;
+    animation: fade-up 0.3s ease-out;
   }
+  
   .animate-slide-in {
-    animation: slide-in 0.3s ease-out;
+    animation: slide-in 0.2s ease-out;
+  }
+  
+  .animate-slide-in-right {
+    animation: slide-in-right 0.2s ease-out;
   }
 }
 
-@keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 12px -3px oklch(0.65 0.14 250 / 0.15); }
-  50% { box-shadow: 0 0 24px -3px oklch(0.65 0.14 250 / 0.3); }
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ─── Scrollbar Styling ──────────────────────────────────────────────────────*/
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
 }
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(12px); }
