@@ -254,7 +254,7 @@ async function callClaude(
 
   const response = await client.messages.create({
     model,
-    max_tokens: 4096,
+    max_tokens: 8192,
     // Use prompt caching for system prompt (identical across runs)
     system: [
       {
@@ -282,12 +282,28 @@ async function callClaude(
     .join("");
 
   // Parse JSON response — strip markdown fences if present
-  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+  let cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
   try {
     const parsed = JSON.parse(cleaned);
     if (!Array.isArray(parsed)) return { results: [], tokensUsed };
     return { results: parsed as AnalysisResult[], tokensUsed };
   } catch {
+    // If response was truncated (hit max_tokens), try to salvage valid items
+    if (response.stop_reason === "max_tokens" && cleaned.startsWith("[")) {
+      console.warn("[ai] Response truncated — attempting to salvage partial JSON");
+      // Find the last complete object by finding last "},"  or "}" before end
+      const lastComplete = cleaned.lastIndexOf("},");
+      if (lastComplete > 0) {
+        const salvaged = cleaned.slice(0, lastComplete + 1) + "]";
+        try {
+          const parsed = JSON.parse(salvaged);
+          if (Array.isArray(parsed)) {
+            console.log(`[ai] Salvaged ${parsed.length} results from truncated response`);
+            return { results: parsed as AnalysisResult[], tokensUsed };
+          }
+        } catch { /* fall through */ }
+      }
+    }
     console.error("[ai] Failed to parse Claude response as JSON:", text.slice(0, 200));
     return { results: [], tokensUsed };
   }
@@ -310,7 +326,7 @@ async function submitBatch(requests: BatchRequest[]): Promise<string> {
       custom_id: r.customId,
       params: {
         model: r.model,
-        max_tokens: 4096,
+        max_tokens: 8192,
         system: [
           {
             type: "text" as const,

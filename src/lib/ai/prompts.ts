@@ -367,8 +367,8 @@ Output a JSON array of insight objects:
 
 Focus on: daily/weekly routines, usage duration patterns, entity correlations, emerging trends. Use hourly activity data (hours={...}) to identify time-of-day patterns and temporal sequences between devices.
 Do NOT repeat dismissed insights from User Feedback. Applied patterns are already handled.
-Return 3-8 insights by confidence. Empty array if insufficient data.
-Only valid JSON, no markdown fences.`;
+Return 3-6 insights by confidence. Empty array if insufficient data.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
   const trendSection = formatTrendComparison(input.dailyStats, input.previousPeriodStats);
@@ -399,8 +399,8 @@ Output a JSON array of anomaly objects:
 
 Look for: unusual-hour activity, spikes/drops vs baseline (>2 std devs), stuck states, out-of-range sensors, devices active at unusual hours (use hourly activity data).
 Do NOT repeat dismissed anomalies from User Feedback.
-Return 0-8 anomalies by severity. Empty array if nothing unusual.
-Only valid JSON, no markdown fences.`;
+Return 0-5 anomalies by severity. Empty array if nothing unusual.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
 
@@ -432,8 +432,8 @@ automationYaml must be valid HA automation YAML.
 CRITICAL: Only use entity_ids that appear in the provided data. NEVER invent or assume entity_ids that are not listed. If an automation needs an entity that doesn't exist, explain what the user would need to add instead of referencing it.
 Look for: manual patterns that could be automated, automations that could be improved, common patterns not yet set up. Use hourly activity data to identify time-based automation opportunities.
 Do NOT repeat dismissed suggestions from User Feedback.
-Return 0-8 suggestions by impact. Empty array if no clear gaps.
-Only valid JSON, no markdown fences.`;
+Return 0-5 suggestions by impact. Empty array if no clear gaps.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
 
@@ -463,8 +463,8 @@ Output a JSON array of suggestion objects:
 
 Look for: devices left on too long, unused devices, redundant automations, climate waste, lights on during sleep (use hourly data), worsening trends.
 Do NOT repeat dismissed suggestions from User Feedback.
-Return 0-8 insights by impact. Empty array if no clear inefficiencies.
-Only valid JSON, no markdown fences.`;
+Return 0-5 insights by impact. Empty array if no clear inefficiencies.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
   const trendSection = formatTrendComparison(input.dailyStats, input.previousPeriodStats);
@@ -499,8 +499,8 @@ Output a JSON array of correlation objects:
 Find: sequential patterns (device A active at hour X then device B at hour X+1), simultaneous state changes (same hours), inverse correlations, conditional patterns, multi-device chains. Use hourly activity data to identify temporal relationships.
 automationYaml must be valid HA YAML. CRITICAL: Only use entity_ids that appear in the provided data. NEVER invent or assume entity_ids that are not listed. If an automation needs an entity that doesn't exist, explain what the user would need to add instead of referencing it.
 Do NOT repeat dismissed correlations.
-Return 0-8 correlations by strength. Empty array if insufficient data.
-Only valid JSON, no markdown fences.`;
+Return 0-5 correlations by strength. Empty array if insufficient data.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
   const trendSection = formatTrendComparison(input.dailyStats, input.previousPeriodStats);
@@ -538,8 +538,8 @@ Output a JSON array of recommendations:
 Look for: missing sensors, incomplete rooms, energy monitoring gaps, security gaps, routine enhancement opportunities based on existing device types and automations.
 CRITICAL: In automationYaml, only use entity_ids that appear in the provided data. For device recommendations that would require new hardware, describe the suggested device in the metadata but do NOT reference non-existent entity_ids in the YAML. If the automation requires an entity the user doesn't have yet, note this in the content field.
 Do NOT repeat dismissed suggestions.
-Return 0-6 recommendations by impact. Empty array if setup seems comprehensive.
-Only valid JSON, no markdown fences.`;
+Return 0-4 recommendations by impact. Empty array if setup seems comprehensive.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
 
@@ -571,8 +571,8 @@ Return a JSON array mixing two result types:
 Usage: daily/weekly routines, duration patterns, entity correlations, trends. Use hourly activity data (hours={...}) to identify time-of-day patterns.
 Efficiency: devices left on too long, unused devices, climate waste, lights on during sleep (check hourly data).
 Do NOT repeat dismissed insights. Applied patterns are already handled.
-Return 4-12 results total (mix of both types) by confidence/impact. Empty array if insufficient data.
-Only valid JSON, no markdown fences.`;
+Return 3-8 results total (mix of both types) by confidence/impact. Empty array if insufficient data.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
   const trendSection = formatTrendComparison(input.dailyStats, input.previousPeriodStats);
@@ -612,8 +612,8 @@ All automationYaml must be valid HA automation YAML.
 CRITICAL: Only use entity_ids that appear in the provided data. NEVER invent or assume entity_ids that are not listed. If an automation needs an entity that doesn't exist, explain what the user would need to add instead of referencing it.
 Find: manual patterns to automate, sequential/simultaneous/inverse device patterns (use hourly activity data to detect temporal sequences), multi-device chains, improvements to existing automations.
 Do NOT repeat dismissed suggestions.
-Return 4-12 results total (mix of both types). Empty array if no opportunities.
-Only valid JSON, no markdown fences.`;
+Return 2-6 results total (mix of both types). Keep content concise. Empty array if no opportunities.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
 
@@ -653,8 +653,8 @@ For each automation, evaluate:
 automationYaml must contain the IMPROVED version of the automation as valid HA YAML.
 CRITICAL: Only use entity_ids that appear in the provided data. NEVER invent or assume entity_ids.
 Do NOT repeat dismissed suggestions from User Feedback.
-Return 0-10 findings sorted by impact (most impactful first). Empty array if all automations look good.
-Only valid JSON, no markdown fences.`;
+Return 0-5 findings sorted by impact (most impactful first). Keep content and automationYaml concise. Empty array if all automations look good.
+IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation outside the JSON array.`;
 
   const feedbackSection = formatFeedback(input.feedbackHistory);
 
