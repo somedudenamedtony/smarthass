@@ -193,7 +193,7 @@ ${existingTemplates.map((t) => `- ${t.name}`).join("\n") || "None"}`;
     try {
       const client = new Anthropic({ apiKey });
       const response = await client.messages.create({
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5",
         max_tokens: 8192,
         system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: userPrompt }],

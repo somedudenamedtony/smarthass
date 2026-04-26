@@ -80,7 +80,7 @@ export function filterInputByRelevance(
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
-function formatStats(stats: DailyStatSnapshot[], detailedTopN: number = 20): string {
+function formatStats(stats: DailyStatSnapshot[], detailedTopN: number = 10): string {
   if (stats.length === 0) return "No daily statistics available yet.";
 
   const scored = scoreEntities(stats);
@@ -143,7 +143,7 @@ function formatStats(stats: DailyStatSnapshot[], detailedTopN: number = 20): str
     // Full daily breakdown for top entities only (last 5 days)
     if (topEntityIds.has(sc.entityId)) {
       detailedLines.push(`\n### ${sc.name} (${sc.domain})`);
-      for (const s of entityStats.slice(0, 5)) {
+      for (const s of entityStats.slice(0, 3)) {
         let line = `- ${s.date}: ${s.stateChanges}chg, ${Math.round(s.activeTime / 60)}m`;
         if (s.avgValue) line += ` avg=${s.avgValue}`;
         if (s.stateDistribution) {
@@ -535,7 +535,7 @@ Output a JSON array of recommendations:
 - "content": 3-5 sentences about why this device adds value based on observed data
 - "metadata": { "entityIds": [...related existing], "confidence": 0-1, "category": "device_suggestion", "deviceRecommendation": { "suggestedDevice": "...", "deviceType": "sensor|actuator|climate|media|security|energy", "rationale": "...", "enhancedEntities": [...], "estimatedBenefit": "..." }, "automationYaml": "..." }
 
-Look for: missing sensors, incomplete rooms, energy monitoring gaps, security gaps, routine enhancement opportunities.
+Look for: missing sensors, incomplete rooms, energy monitoring gaps, security gaps, routine enhancement opportunities based on existing device types and automations.
 CRITICAL: In automationYaml, only use entity_ids that appear in the provided data. For device recommendations that would require new hardware, describe the suggested device in the metadata but do NOT reference non-existent entity_ids in the YAML. If the automation requires an entity the user doesn't have yet, note this in the content field.
 Do NOT repeat dismissed suggestions.
 Return 0-6 recommendations by impact. Empty array if setup seems comprehensive.
@@ -548,12 +548,6 @@ ${formatEntitySummary(input)}
 
 ## Existing Automations
 ${formatAutomations(input.automations)}
-
-## Entity Activity (last ${input.analysisWindowDays} days)
-${formatStats(input.dailyStats)}
-
-## Baselines (per day of week)
-${formatBaselines(input.baselines)}
 ${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
 
   return { system, user };
@@ -631,9 +625,6 @@ ${formatAutomations(input.automations)}
 
 ## Entity Activity (last ${input.analysisWindowDays} days)
 ${formatStats(input.dailyStats)}
-
-## Baselines (per day of week)
-${formatBaselines(input.baselines)}
 ${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
 
   return { system, user };
@@ -674,10 +665,21 @@ Only valid JSON, no markdown fences.`;
       : "never triggered";
     return `### ${a.alias || a.haAutomationId} [${status}, last: ${triggered}]
 ${a.description ? `Description: ${a.description}` : ""}
-Triggers: ${JSON.stringify(a.triggerConfig, null, 2)}
-Conditions: ${JSON.stringify(a.conditionConfig, null, 2)}
-Actions: ${JSON.stringify(a.actionConfig, null, 2)}`;
+Triggers: ${JSON.stringify(a.triggerConfig)}
+Conditions: ${JSON.stringify(a.conditionConfig)}
+Actions: ${JSON.stringify(a.actionConfig)}`;
   }).join("\n\n");
+
+  // Lightweight entity reference — just domains and counts, not full listing
+  const domainEntities = new Map<string, string[]>();
+  for (const e of input.entities) {
+    if (!domainEntities.has(e.domain)) domainEntities.set(e.domain, []);
+    domainEntities.get(e.domain)!.push(e.entityId);
+  }
+  const entityRef = [...domainEntities.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([domain, ids]) => `${domain} (${ids.length}): ${ids.slice(0, 5).join(", ")}${ids.length > 5 ? ` +${ids.length - 5} more` : ""}`)
+    .join("\n");
 
   const user = `## Home Overview
 ${formatEntitySummary(input)}
@@ -685,11 +687,8 @@ ${formatEntitySummary(input)}
 ## Automations to Review (full configuration)
 ${detailedAutomations || "No automations configured."}
 
-## Available Entities (for reference when suggesting improvements)
-${input.entities.map((e) => `- ${e.entityId} (${e.domain})${e.friendlyName ? ` "${e.friendlyName}"` : ""}${e.areaId ? ` [area: ${e.areaId}]` : ""} state=${e.lastState || "unknown"}`).join("\n")}
-
-## Entity Activity (last ${input.analysisWindowDays} days)
-${formatStats(input.dailyStats)}
+## Available Entity Domains
+${entityRef}
 ${feedbackSection ? `\n## User Feedback\n${feedbackSection}` : ""}`;
 
   return { system, user };

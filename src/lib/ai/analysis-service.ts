@@ -233,7 +233,7 @@ interface ClaudeResponse {
 async function callClaude(
   system: string,
   user: string,
-  model: string = "claude-sonnet-4-6"
+  model: string = "claude-haiku-4-5"
 ): Promise<ClaudeResponse> {
   const client = await getClient();
 
@@ -254,7 +254,7 @@ async function callClaude(
 
   const response = await client.messages.create({
     model,
-    max_tokens: 8192,
+    max_tokens: 4096,
     // Use prompt caching for system prompt (identical across runs)
     system: [
       {
@@ -310,7 +310,7 @@ async function submitBatch(requests: BatchRequest[]): Promise<string> {
       custom_id: r.customId,
       params: {
         model: r.model,
-        max_tokens: 8192,
+        max_tokens: 4096,
         system: [
           {
             type: "text" as const,
@@ -470,7 +470,7 @@ export async function runAnalysis(
   const rawInput = await gatherAnalysisInput(instanceId);
 
   // Filter to top-N relevant entities to control token usage
-  const input = filterInputByRelevance(rawInput, 50);
+  const input = filterInputByRelevance(rawInput, 25);
 
   // Skip if no meaningful data at all
   const hasEntities = input.entities.length > 0;
@@ -502,11 +502,8 @@ export async function runAnalysis(
   const builder = ANALYSIS_RUNNERS[category];
   const { system, user } = builder(input);
 
-  // Use Haiku for anomaly detection + device suggestions (lightweight), Sonnet for the rest
-  const model =
-    category === "anomaly_detection" || category === "device_suggestions"
-      ? "claude-haiku-4-5"
-      : "claude-sonnet-4-6";
+  // Use Haiku for all categories (cost-optimized — Haiku 4.5 handles structured JSON well)
+  const model = "claude-haiku-4-5";
 
   const { results, tokensUsed } = await callClaude(system, user, model);
 
@@ -593,7 +590,7 @@ export async function runAllAnalyses(
 
   // Gather input once and filter by relevance (shared across all calls)
   const rawInput = await gatherAnalysisInput(instanceId);
-  const input = filterInputByRelevance(rawInput, 50);
+  const input = filterInputByRelevance(rawInput, 25);
 
   const hasEntities = input.entities.length > 0;
   const hasDailyStats = input.dailyStats.length > 0;
@@ -702,7 +699,7 @@ export async function runAllAnalyses(
   // ── Call 3: Automation Gaps + Cross-Device (merged, Sonnet) ───────────
   try {
     const { system, user } = buildAutomationAndCorrelationPrompt(input);
-    const { results: r, tokensUsed } = await callClaude(system, user);
+    const { results: r, tokensUsed } = await callClaude(system, user, "claude-haiku-4-5");
     const counts = await storeResults(r, ["automation_gap", "cross_device_correlation"]);
     results.automation_gaps = counts.automation_gap ?? 0;
     results.cross_device_correlation = counts.cross_device_correlation ?? 0;
@@ -739,7 +736,7 @@ export async function runAllAnalyses(
   if (input.automations.length > 0) {
     try {
       const { system, user } = buildAutomationReviewPrompt(input);
-      const { results: r, tokensUsed } = await callClaude(system, user);
+      const { results: r, tokensUsed } = await callClaude(system, user, "claude-haiku-4-5");
       const counts = await storeResults(r, ["automation_review"]);
       results.automation_review = counts.automation_review ?? 0;
       totalTokens += tokensUsed;
@@ -784,7 +781,7 @@ export async function runAllAnalysesBatch(
   instanceId: string
 ): Promise<{ batchId: string | null; skipped: boolean; results?: Record<string, number> }> {
   const rawInput = await gatherAnalysisInput(instanceId);
-  const input = filterInputByRelevance(rawInput, 50);
+  const input = filterInputByRelevance(rawInput, 25);
 
   // Delta check: skip if data hasn't changed
   const hash = computeAnalysisHash(input);
@@ -838,7 +835,7 @@ export async function runAllAnalysesBatch(
     customId: `${run.id}:automation_correlation`,
     system: ac.system,
     user: ac.user,
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5",
   });
 
   const ds = buildDeviceSuggestionPrompt(input);
@@ -856,7 +853,7 @@ export async function runAllAnalysesBatch(
       customId: `${run.id}:automation_review`,
       system: ar.system,
       user: ar.user,
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5",
     });
   }
 
