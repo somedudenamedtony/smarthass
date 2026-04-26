@@ -49,11 +49,12 @@ interface HAInstance {
 
 const analysisCategoryLabels: Record<string, string> = {
   usage_patterns: "Usage Patterns",
+  efficiency: "Efficiency",
   anomaly_detection: "Anomaly Detection",
   automation_gaps: "Automation Gaps",
-  efficiency: "Efficiency",
   cross_device_correlation: "Cross-Device Correlation",
   device_suggestions: "Device Suggestions",
+  automation_review: "Automation Review",
 };
 
 export default function DashboardPage() {
@@ -88,6 +89,7 @@ export default function DashboardPage() {
     error?: string;
   } | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [categoryProgress, setCategoryProgress] = useState<Record<string, { status: "pending" | "running" | "done" | "error"; count?: number }>>({});
 
   // Load instances
   useEffect(() => {
@@ -143,6 +145,7 @@ export default function DashboardPage() {
     setSyncStats(null);
     setAnalysisResult(null);
     setSyncError(null);
+    setCategoryProgress({});
     setSyncDialogOpen(true);
 
     // Phase 1: Sync
@@ -171,29 +174,90 @@ export default function DashboardPage() {
       return;
     }
 
-    // Phase 2: AI Analysis
+    // Phase 2: AI Analysis via SSE
     setSyncPhase("analyzing");
+    // Initialize all categories as pending
+    const initialProgress: Record<string, { status: "pending" | "running" | "done" | "error"; count?: number }> = {};
+    for (const key of Object.keys(analysisCategoryLabels)) {
+      initialProgress[key] = { status: "pending" };
+    }
+    setCategoryProgress(initialProgress);
+
+    // Map SSE step names to UI category keys
+    const stepToCategories: Record<string, string[]> = {
+      usage_efficiency: ["usage_patterns", "efficiency"],
+      anomaly_detection: ["anomaly_detection"],
+      automation_correlation: ["automation_gaps", "cross_device_correlation"],
+      device_suggestions: ["device_suggestions"],
+      automation_review: ["automation_review"],
+    };
+
     try {
-      const analysisRes = await fetch("/api/analysis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanceId: selectedInstance }),
+      const eventSource = new EventSource(
+        `/api/analysis/stream?instanceId=${encodeURIComponent(selectedInstance)}`
+      );
+
+      await new Promise<void>((resolve, reject) => {
+        eventSource.addEventListener("progress", (e) => {
+          const data = JSON.parse(e.data);
+          const categories = stepToCategories[data.step];
+          if (categories) {
+            setCategoryProgress((prev) => {
+              const next = { ...prev };
+              for (const cat of categories) {
+                next[cat] = {
+                  status: data.status === "running" ? "running" : data.status === "done" ? "done" : "error",
+                  count: data.count,
+                };
+              }
+              return next;
+            });
+          }
+        });
+
+        eventSource.addEventListener("complete", (e) => {
+          const data = JSON.parse(e.data);
+          setAnalysisResult({
+            success: true,
+            totalInsights: data.totalInsights,
+            results: data.results,
+          });
+          eventSource.close();
+          resolve();
+        });
+
+        eventSource.addEventListener("error", (e) => {
+          if (e instanceof MessageEvent && e.data) {
+            const data = JSON.parse(e.data);
+            setAnalysisResult({ success: false, error: data.error || "Analysis failed" });
+          } else {
+            setAnalysisResult({ success: false, error: "Connection lost during analysis." });
+          }
+          eventSource.close();
+          resolve();
+        });
+
+        eventSource.onerror = () => {
+          // SSE connection error (not a named event)
+          if (eventSource.readyState === EventSource.CLOSED) {
+            resolve();
+          } else {
+            eventSource.close();
+            setAnalysisResult({ success: false, error: "Connection lost during analysis." });
+            resolve();
+          }
+        };
+
+        // Safety timeout: 5 minutes
+        setTimeout(() => {
+          eventSource.close();
+          reject(new Error("Analysis timed out"));
+        }, 300_000);
       });
-      const analysisData = await analysisRes.json();
-      if (analysisRes.ok) {
-        setAnalysisResult({
-          success: true,
-          totalInsights: analysisData.totalInsights,
-          results: analysisData.results,
-        });
-      } else {
-        setAnalysisResult({
-          success: false,
-          error: analysisData.error || "Analysis failed",
-        });
-      }
     } catch {
-      setAnalysisResult({ success: false, error: "Network error during analysis." });
+      if (!analysisResult) {
+        setAnalysisResult({ success: false, error: "Network error during analysis." });
+      }
     }
 
     setSyncPhase("done");
@@ -416,12 +480,24 @@ export default function DashboardPage() {
                   <div className="flex justify-between"><span className="text-muted-foreground">Automations synced</span><span className="font-medium">{syncStats.automations}</span></div>
                 </div>
               )}
-              {Object.entries(analysisCategoryLabels).map(([key, label]) => (
-                <div key={key} className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
-                  <span>{label}</span>
-                </div>
-              ))}
+              {Object.entries(analysisCategoryLabels).map(([key, label]) => {
+                const progress = categoryProgress[key];
+                const status = progress?.status ?? "pending";
+                return (
+                  <div key={key} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-3">
+                      {status === "running" && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
+                      {status === "done" && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />}
+                      {status === "error" && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                      {status === "pending" && <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0" />}
+                      <span className={status === "pending" ? "text-muted-foreground/50" : "text-muted-foreground"}>{label}</span>
+                    </div>
+                    {status === "done" && progress?.count != null && (
+                      <Badge variant="secondary">{progress.count}</Badge>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 

@@ -577,6 +577,13 @@ export async function runAnalysis(
   return { count: storedCount, tokensUsed };
 }
 
+export type AnalysisProgressCallback = (event: {
+  step: string;
+  status: "running" | "done" | "error";
+  count?: number;
+  tokensUsed?: number;
+}) => void;
+
 /**
  * Run all analysis types for an instance using merged prompts.
  * Reduces from 6 API calls to 4 by combining related categories:
@@ -589,7 +596,8 @@ export async function runAnalysis(
  * Returns a summary of insights generated per category.
  */
 export async function runAllAnalyses(
-  instanceId: string
+  instanceId: string,
+  onProgress?: AnalysisProgressCallback
 ): Promise<Record<string, number>> {
   // Create analysis run record
   const [run] = await db
@@ -672,6 +680,7 @@ export async function runAllAnalyses(
 
   // ── Call 1: Usage Patterns + Efficiency (merged, Haiku) ───────────────
   if (hasDailyStats) {
+    onProgress?.({ step: "usage_efficiency", status: "running" });
     try {
       const { system, user } = buildUsageAndEfficiencyPrompt(input);
       const { results: r, tokensUsed } = await callClaude(
@@ -684,16 +693,19 @@ export async function runAllAnalyses(
       console.log(
         `[ai] usage+efficiency: ${results.usage_patterns}+${results.efficiency} insights (${tokensUsed} tokens)`
       );
+      onProgress?.({ step: "usage_efficiency", status: "done", count: (results.usage_patterns ?? 0) + (results.efficiency ?? 0), tokensUsed });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       console.error(`[ai] usage+efficiency failed:`, msg);
       results.usage_patterns = 0;
       results.efficiency = 0;
+      onProgress?.({ step: "usage_efficiency", status: "error" });
     }
   }
 
   // ── Call 2: Anomaly Detection (standalone, Haiku) ─────────────────────
   if (hasDailyStats) {
+    onProgress?.({ step: "anomaly_detection", status: "running" });
     try {
       const { system, user } = buildAnomalyDetectionPrompt(input);
       const { results: r, tokensUsed } = await callClaude(
@@ -705,14 +717,17 @@ export async function runAllAnalyses(
       console.log(
         `[ai] anomaly_detection: ${results.anomaly_detection} insights (${tokensUsed} tokens)`
       );
+      onProgress?.({ step: "anomaly_detection", status: "done", count: results.anomaly_detection ?? 0, tokensUsed });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       console.error(`[ai] anomaly_detection failed:`, msg);
       results.anomaly_detection = 0;
+      onProgress?.({ step: "anomaly_detection", status: "error" });
     }
   }
 
-  // ── Call 3: Automation Gaps + Cross-Device (merged, Sonnet) ───────────
+  // ── Call 3: Automation Gaps + Cross-Device (merged, Haiku) ─────────────
+  onProgress?.({ step: "automation_correlation", status: "running" });
   try {
     const { system, user } = buildAutomationAndCorrelationPrompt(input);
     const { results: r, tokensUsed } = await callClaude(system, user, "claude-haiku-4-5");
@@ -723,14 +738,17 @@ export async function runAllAnalyses(
     console.log(
       `[ai] automation+correlation: ${results.automation_gaps}+${results.cross_device_correlation} insights (${tokensUsed} tokens)`
     );
+    onProgress?.({ step: "automation_correlation", status: "done", count: (results.automation_gaps ?? 0) + (results.cross_device_correlation ?? 0), tokensUsed });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.error(`[ai] automation+correlation failed:`, msg);
     results.automation_gaps = 0;
     results.cross_device_correlation = 0;
+    onProgress?.({ step: "automation_correlation", status: "error" });
   }
 
   // ── Call 4: Device Suggestions (standalone, Haiku) ────────────────────
+  onProgress?.({ step: "device_suggestions", status: "running" });
   try {
     const { system, user } = buildDeviceSuggestionPrompt(input);
     const { results: r, tokensUsed } = await callClaude(
@@ -742,14 +760,17 @@ export async function runAllAnalyses(
     console.log(
       `[ai] device_suggestions: ${results.device_suggestions} insights (${tokensUsed} tokens)`
     );
+    onProgress?.({ step: "device_suggestions", status: "done", count: results.device_suggestions ?? 0, tokensUsed });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.error(`[ai] device_suggestions failed:`, msg);
     results.device_suggestions = 0;
+    onProgress?.({ step: "device_suggestions", status: "error" });
   }
 
-  // ── Call 5: Automation Review (standalone, Sonnet) ────────────────────
+  // ── Call 5: Automation Review (standalone, Haiku) ──────────────────────
   if (input.automations.length > 0) {
+    onProgress?.({ step: "automation_review", status: "running" });
     try {
       const { system, user } = buildAutomationReviewPrompt(input);
       const { results: r, tokensUsed } = await callClaude(system, user, "claude-haiku-4-5");
@@ -759,10 +780,12 @@ export async function runAllAnalyses(
       console.log(
         `[ai] automation_review: ${results.automation_review} insights (${tokensUsed} tokens)`
       );
+      onProgress?.({ step: "automation_review", status: "done", count: results.automation_review ?? 0, tokensUsed });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       console.error(`[ai] automation_review failed:`, msg);
       results.automation_review = 0;
+      onProgress?.({ step: "automation_review", status: "error" });
     }
   }
 
