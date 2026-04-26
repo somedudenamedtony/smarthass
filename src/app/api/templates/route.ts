@@ -193,7 +193,7 @@ ${existingTemplates.map((t) => `- ${t.name}`).join("\n") || "None"}`;
     try {
       const client = new Anthropic({ apiKey });
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 8192,
         system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: userPrompt }],
@@ -204,7 +204,8 @@ ${existingTemplates.map((t) => `- ${t.name}`).join("\n") || "None"}`;
         .map((b) => b.text)
         .join("");
 
-      const templates = JSON.parse(text);
+      const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+      const templates = JSON.parse(cleaned);
 
       // Store generated templates
       let stored = 0;

@@ -152,7 +152,7 @@ ${entities.map((e) => `- ${e.entityId} (${e.domain})${e.friendlyName ? ` "${e.fr
   try {
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 4096,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: userPrompt }],
@@ -164,7 +164,8 @@ ${entities.map((e) => `- ${e.entityId} (${e.domain})${e.friendlyName ? ` "${e.fr
       .join("");
 
     const tokensUsed = (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
-    const result = JSON.parse(text);
+    const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    const result = JSON.parse(cleaned);
 
     // Store review
     const [review] = await db

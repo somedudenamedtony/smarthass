@@ -233,7 +233,7 @@ interface ClaudeResponse {
 async function callClaude(
   system: string,
   user: string,
-  model: string = "claude-sonnet-4-20250514"
+  model: string = "claude-sonnet-4-6"
 ): Promise<ClaudeResponse> {
   const client = await getClient();
 
@@ -281,9 +281,10 @@ async function callClaude(
     .map((block) => block.text)
     .join("");
 
-  // Parse JSON response
+  // Parse JSON response — strip markdown fences if present
+  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(cleaned);
     if (!Array.isArray(parsed)) return { results: [], tokensUsed };
     return { results: parsed as AnalysisResult[], tokensUsed };
   } catch {
@@ -356,8 +357,10 @@ async function pollBatchResults(
 
           const tokensUsed = (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0);
 
+          // Strip markdown fences if present
+          const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
           try {
-            const parsed = JSON.parse(text);
+            const parsed = JSON.parse(cleaned);
             if (Array.isArray(parsed)) {
               resultsMap.set(item.custom_id, { results: parsed as AnalysisResult[], tokensUsed });
             } else {
@@ -502,8 +505,8 @@ export async function runAnalysis(
   // Use Haiku for anomaly detection + device suggestions (lightweight), Sonnet for the rest
   const model =
     category === "anomaly_detection" || category === "device_suggestions"
-      ? "claude-haiku-4-20250414"
-      : "claude-sonnet-4-20250514";
+      ? "claude-haiku-4-5"
+      : "claude-sonnet-4-6";
 
   const { results, tokensUsed } = await callClaude(system, user, model);
 
@@ -659,7 +662,7 @@ export async function runAllAnalyses(
     try {
       const { system, user } = buildUsageAndEfficiencyPrompt(input);
       const { results: r, tokensUsed } = await callClaude(
-        system, user, "claude-haiku-4-20250414"
+        system, user, "claude-haiku-4-5"
       );
       const counts = await storeResults(r, ["usage_pattern", "efficiency"]);
       results.usage_patterns = counts.usage_pattern ?? 0;
@@ -681,7 +684,7 @@ export async function runAllAnalyses(
     try {
       const { system, user } = buildAnomalyDetectionPrompt(input);
       const { results: r, tokensUsed } = await callClaude(
-        system, user, "claude-haiku-4-20250414"
+        system, user, "claude-haiku-4-5"
       );
       const counts = await storeResults(r, ["anomaly_detection"]);
       results.anomaly_detection = counts.anomaly_detection ?? 0;
@@ -718,7 +721,7 @@ export async function runAllAnalyses(
   try {
     const { system, user } = buildDeviceSuggestionPrompt(input);
     const { results: r, tokensUsed } = await callClaude(
-      system, user, "claude-haiku-4-20250414"
+      system, user, "claude-haiku-4-5"
     );
     const counts = await storeResults(r, ["device_suggestion"]);
     results.device_suggestions = counts.device_suggestion ?? 0;
@@ -818,7 +821,7 @@ export async function runAllAnalysesBatch(
       customId: `${run.id}:usage_efficiency`,
       system: ue.system,
       user: ue.user,
-      model: "claude-haiku-4-20250414",
+      model: "claude-haiku-4-5",
     });
 
     const ad = buildAnomalyDetectionPrompt(input);
@@ -826,7 +829,7 @@ export async function runAllAnalysesBatch(
       customId: `${run.id}:anomaly_detection`,
       system: ad.system,
       user: ad.user,
-      model: "claude-haiku-4-20250414",
+      model: "claude-haiku-4-5",
     });
   }
 
@@ -835,7 +838,7 @@ export async function runAllAnalysesBatch(
     customId: `${run.id}:automation_correlation`,
     system: ac.system,
     user: ac.user,
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
   });
 
   const ds = buildDeviceSuggestionPrompt(input);
@@ -843,7 +846,7 @@ export async function runAllAnalysesBatch(
     customId: `${run.id}:device_suggestions`,
     system: ds.system,
     user: ds.user,
-    model: "claude-haiku-4-20250414",
+    model: "claude-haiku-4-5",
   });
 
   // Automation review (only if automations exist)
@@ -853,7 +856,7 @@ export async function runAllAnalysesBatch(
       customId: `${run.id}:automation_review`,
       system: ar.system,
       user: ar.user,
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
     });
   }
 

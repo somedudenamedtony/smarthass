@@ -264,7 +264,7 @@ ${JSON.stringify(graph?.nodes?.length || 0)} nodes, ${JSON.stringify(graph?.edge
 
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-20250414",
+      model: "claude-haiku-4-5",
       max_tokens: 2048,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: userPrompt }],
@@ -275,7 +275,8 @@ ${JSON.stringify(graph?.nodes?.length || 0)} nodes, ${JSON.stringify(graph?.edge
       .map((b) => b.text)
       .join("");
 
-    return NextResponse.json(JSON.parse(text));
+    const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    return NextResponse.json(JSON.parse(cleaned));
   } catch (error) {
     console.error("[dependencies-ai] Error:", error);
     return NextResponse.json({ error: "Analysis failed" }, { status: 500 });
