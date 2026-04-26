@@ -7,6 +7,9 @@ import { rateLimit } from "@/lib/rate-limit";
 import { hasConfig } from "@/lib/app-config";
 import { NextRequest } from "next/server";
 
+// Prevent Next.js from buffering the SSE stream
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/analysis/stream?instanceId=xxx — SSE streaming analysis
  * Streams progress events as each category completes.

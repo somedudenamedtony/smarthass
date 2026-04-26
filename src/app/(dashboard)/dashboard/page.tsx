@@ -193,71 +193,75 @@ export default function DashboardPage() {
     };
 
     try {
-      const eventSource = new EventSource(
+      const response = await fetch(
         `/api/analysis/stream?instanceId=${encodeURIComponent(selectedInstance)}`
       );
 
-      await new Promise<void>((resolve, reject) => {
-        eventSource.addEventListener("progress", (e) => {
-          const data = JSON.parse(e.data);
-          const categories = stepToCategories[data.step];
-          if (categories) {
-            setCategoryProgress((prev) => {
-              const next = { ...prev };
-              for (const cat of categories) {
-                next[cat] = {
-                  status: data.status === "running" ? "running" : data.status === "done" ? "done" : "error",
-                  count: data.count,
-                };
-              }
-              return next;
-            });
-          }
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        setAnalysisResult({
+          success: false,
+          error: (errData as { error?: string }).error || `Analysis failed (${response.status})`,
         });
+      } else if (!response.body) {
+        setAnalysisResult({ success: false, error: "Streaming not supported." });
+      } else {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
 
-        eventSource.addEventListener("complete", (e) => {
-          const data = JSON.parse(e.data);
-          setAnalysisResult({
-            success: true,
-            totalInsights: data.totalInsights,
-            results: data.results,
-          });
-          eventSource.close();
-          resolve();
-        });
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
 
-        eventSource.addEventListener("error", (e) => {
-          if (e instanceof MessageEvent && e.data) {
-            const data = JSON.parse(e.data);
-            setAnalysisResult({ success: false, error: data.error || "Analysis failed" });
-          } else {
-            setAnalysisResult({ success: false, error: "Connection lost during analysis." });
+          // Parse SSE events from buffer
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? ""; // Keep incomplete line in buffer
+
+          let eventType = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith("data: ") && eventType) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (eventType === "progress") {
+                  const categories = stepToCategories[data.step];
+                  if (categories) {
+                    setCategoryProgress((prev) => {
+                      const next = { ...prev };
+                      for (const cat of categories) {
+                        next[cat] = {
+                          status: data.status === "running" ? "running" : data.status === "done" ? "done" : "error",
+                          count: data.count,
+                        };
+                      }
+                      return next;
+                    });
+                  }
+                } else if (eventType === "complete") {
+                  setAnalysisResult({
+                    success: true,
+                    totalInsights: data.totalInsights,
+                    results: data.results,
+                  });
+                } else if (eventType === "error") {
+                  setAnalysisResult({ success: false, error: data.error || "Analysis failed" });
+                }
+              } catch { /* skip malformed JSON */ }
+              eventType = "";
+            } else if (line === "") {
+              eventType = "";
+            }
           }
-          eventSource.close();
-          resolve();
-        });
+        }
 
-        eventSource.onerror = () => {
-          // SSE connection error (not a named event)
-          if (eventSource.readyState === EventSource.CLOSED) {
-            resolve();
-          } else {
-            eventSource.close();
-            setAnalysisResult({ success: false, error: "Connection lost during analysis." });
-            resolve();
-          }
-        };
-
-        // Safety timeout: 5 minutes
-        setTimeout(() => {
-          eventSource.close();
-          reject(new Error("Analysis timed out"));
-        }, 300_000);
-      });
-    } catch {
-      if (!analysisResult) {
-        setAnalysisResult({ success: false, error: "Network error during analysis." });
+        // If we never got a complete/error event
       }
+    } catch (err) {
+      console.error("[sync] Analysis stream error:", err);
+      setAnalysisResult({ success: false, error: "Network error during analysis." });
     }
 
     setSyncPhase("done");
