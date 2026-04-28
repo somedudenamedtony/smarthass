@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.7
+
+- Fix deploy dialog too narrow — override sm:max-w-sm default so the dialog actually uses the full 2xl width
+- Fix deploy failing for device triggers — entity registry UIDs were incorrectly treated as entity IDs during validation
+
 ## 1.5.6
 
 - Fix horizontal overflow in deploy automation dialog — long entity IDs and YAML no longer require sideways scrolling

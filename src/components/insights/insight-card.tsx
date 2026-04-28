@@ -452,7 +452,7 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
 
         {/* Deploy Confirmation Dialog */}
         <Dialog open={deployDialogOpen} onOpenChange={setDeployDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
+          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
             <DialogHeader>
               <DialogTitle>Deploy Automation to Home Assistant</DialogTitle>
               <DialogDescription>

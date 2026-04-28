@@ -150,8 +150,8 @@ export async function validateAgainstHA(
     return { errors: ["Not a valid YAML object"], warnings: [] };
   }
 
-  // Check entity IDs
-  const referencedEntities = extractEntityIds(parsed);
+  // Check entity IDs (skip registry UIDs from device triggers — they lack a dot separator)
+  const referencedEntities = extractEntityIds(parsed).filter((id) => id.includes("."));
   const missingEntities = referencedEntities.filter((id) => !knownEntityIds.has(id));
   if (missingEntities.length > 0) {
     errors.push(`Entity IDs not found on HA instance: ${missingEntities.join(", ")}`);
