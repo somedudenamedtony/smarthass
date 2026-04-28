@@ -8,8 +8,9 @@ WORKDIR /app
 # Clone the full project source (HA Supervisor build context is ha-addon/ only)
 ARG SMARTHASS_REPO=https://github.com/somedudenamedtony/smarthass.git
 ARG SMARTHASS_REF=main
-# Version tag forces Docker to invalidate cache and re-clone on each release
-RUN echo "SmartHass v1.5.5" && git clone --depth=1 --branch=${SMARTHASS_REF} ${SMARTHASS_REPO} .
+# BUILD_VERSION is automatically set by HA Supervisor from config.yaml version
+ARG BUILD_VERSION
+RUN echo "SmartHass v${BUILD_VERSION}" && git clone --depth=1 --branch=${SMARTHASS_REF} ${SMARTHASS_REPO} .
 
 RUN npm ci
 

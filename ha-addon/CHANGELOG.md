@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.9
+
+- Fix Docker cache not busting on new releases — use HA Supervisor BUILD_VERSION arg so code actually updates
+
 ## 1.5.8
 
 - Fix stale HA version display — version is now refreshed from HA on every sync
