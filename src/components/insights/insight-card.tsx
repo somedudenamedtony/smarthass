@@ -452,7 +452,7 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
 
         {/* Deploy Confirmation Dialog */}
         <Dialog open={deployDialogOpen} onOpenChange={setDeployDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
             <DialogHeader>
               <DialogTitle>Deploy Automation to Home Assistant</DialogTitle>
               <DialogDescription>
@@ -461,9 +461,9 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
             </DialogHeader>
 
             <div className="space-y-4">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium mb-1">{insight.title}</p>
-                <p className="text-sm text-muted-foreground">{insight.content}</p>
+                <p className="text-sm text-muted-foreground break-words">{insight.content}</p>
               </div>
 
               {meta?.entityIds && meta.entityIds.length > 0 && (
@@ -471,7 +471,7 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
                   <p className="text-xs font-medium mb-1">Affected Entities:</p>
                   <div className="flex flex-wrap gap-1">
                     {meta.entityIds.map((eid) => (
-                      <Badge key={eid} variant="outline" className="text-[10px] font-mono">
+                      <Badge key={eid} variant="outline" className="text-[10px] font-mono max-w-full truncate">
                         {eid}
                       </Badge>
                     ))}
@@ -482,7 +482,7 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
               <div>
                 <p className="text-xs font-medium mb-1">Automation YAML (editable):</p>
                 <textarea
-                  className="w-full rounded-md border bg-muted p-3 text-xs font-mono min-h-[200px] resize-y"
+                  className="w-full rounded-md border bg-muted p-3 text-xs font-mono min-h-[200px] resize-y break-all"
                   value={editableYaml}
                   onChange={(e) => setEditableYaml(e.target.value)}
                 />
@@ -501,7 +501,7 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {preValidation.missing.map((eid) => (
-                        <Badge key={eid} variant="outline" className="text-[10px] font-mono border-destructive/30 text-destructive">
+                        <Badge key={eid} variant="outline" className="text-[10px] font-mono border-destructive/30 text-destructive max-w-full truncate">
                           {eid}
                         </Badge>
                       ))}

@@ -78,14 +78,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (insight.type !== "automation") {
+  const meta = insight.metadata as { automationYaml?: string; deployedAutomationId?: string } | null;
+
+  if (insight.type !== "automation" && insight.type !== "suggestion" && !meta?.automationYaml) {
     return NextResponse.json(
-      { error: "Insight is not an automation suggestion" },
+      { error: "Insight does not contain a deployable automation" },
       { status: 400 }
     );
   }
-
-  const meta = insight.metadata as { automationYaml?: string; deployedAutomationId?: string } | null;
 
   if (meta?.deployedAutomationId) {
     return NextResponse.json(
