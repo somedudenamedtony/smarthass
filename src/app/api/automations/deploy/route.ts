@@ -78,7 +78,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const meta = insight.metadata as { automationYaml?: string; deployedAutomationId?: string } | null;
+  const meta = insight.metadata as {
+    automationYaml?: string;
+    deployedAutomationId?: string;
+    replacesAutomationIds?: string[];
+  } | null;
 
   if (insight.type !== "automation" && insight.type !== "suggestion" && !meta?.automationYaml) {
     return NextResponse.json(
@@ -168,7 +172,39 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Step 5: Update insight status
+  // Step 5: Disable replaced automations
+  const disabledIds: string[] = [];
+  const disableWarnings: string[] = [];
+  if (meta?.replacesAutomationIds && meta.replacesAutomationIds.length > 0) {
+    // Map config IDs to entity_ids by checking automation states
+    let automationStates: { entity_id: string; attributes: Record<string, unknown> }[] = [];
+    try {
+      const allStates = await client.getStates();
+      automationStates = allStates.filter((s) => s.entity_id.startsWith("automation."));
+    } catch {
+      disableWarnings.push("Could not fetch states to disable replaced automations");
+    }
+
+    for (const configId of meta.replacesAutomationIds) {
+      const match = automationStates.find(
+        (s) => s.attributes.id === configId
+      );
+      if (match) {
+        try {
+          await client.callService("automation", "turn_off", {
+            entity_id: match.entity_id,
+          });
+          disabledIds.push(configId);
+        } catch {
+          disableWarnings.push(`Failed to disable automation ${configId} (${match.entity_id})`);
+        }
+      } else {
+        disableWarnings.push(`Automation config ${configId} not found on HA instance — may have been removed`);
+      }
+    }
+  }
+
+  // Step 6: Update insight status
   await db
     .update(schema.aiAnalyses)
     .set({
@@ -177,13 +213,13 @@ export async function POST(request: NextRequest) {
         ...(insight.metadata as Record<string, unknown>),
         deployedAutomationId: automationId,
         deployedAt: new Date().toISOString(),
-        // Store the actual deployed YAML (may have been edited by user)
         deployedYaml: validation.yaml,
+        disabledAutomationIds: disabledIds,
       },
     })
     .where(eq(schema.aiAnalyses.id, insightId));
 
-  // Step 6: Re-sync automations to refresh local DB
+  // Step 7: Re-sync automations to refresh local DB
   try {
     await syncAutomations(instanceId, client);
   } catch {
@@ -194,7 +230,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     automationId,
-    warnings: [...validation.warnings, ...haValidation.warnings],
+    disabledAutomationIds: disabledIds,
+    warnings: [...validation.warnings, ...haValidation.warnings, ...disableWarnings],
   });
 }
 

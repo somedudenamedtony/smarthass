@@ -67,6 +67,7 @@ interface InsightMetadata {
   };
   trendDirection?: "improving" | "declining" | "stable" | "volatile";
   trendPercentage?: number;
+  replacesAutomationIds?: string[];
   category?: string;
 }
 
@@ -473,6 +474,19 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
                     {meta.entityIds.map((eid) => (
                       <Badge key={eid} variant="outline" className="text-[10px] font-mono max-w-full truncate">
                         {eid}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {meta?.replacesAutomationIds && meta.replacesAutomationIds.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1">Will disable {meta.replacesAutomationIds.length} existing automation{meta.replacesAutomationIds.length > 1 ? "s" : ""}:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {meta.replacesAutomationIds.map((aid) => (
+                      <Badge key={aid} variant="outline" className="text-[10px] font-mono max-w-full truncate border-warning/30 text-warning">
+                        {aid}
                       </Badge>
                     ))}
                   </div>

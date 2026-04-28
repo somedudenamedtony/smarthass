@@ -639,7 +639,9 @@ Return a JSON array of review findings:
 - "type": "suggestion"
 - "title": Short title (max 80 chars) — e.g. "Improve: [automation name]"
 - "content": 3-5 sentences explaining the issue, why it matters, and the specific improvement
-- "metadata": { "entityIds": [...], "confidence": 0-1, "category": "automation_review", "automationYaml": "..." }
+- "metadata": { "entityIds": [...], "confidence": 0-1, "category": "automation_review", "automationYaml": "...", "replacesAutomationIds": [...] }
+
+replacesAutomationIds: array of HA automation config IDs (shown in brackets after each automation heading) that the new automationYaml replaces or improves. When consolidating duplicates, include ALL original automation IDs. When improving a single automation, include that automation's ID. The old automations will be DISABLED when the new one is deployed.
 
 For each automation, evaluate:
 1. **Reliability**: Missing error handling, no fallback if entity unavailable, race conditions with multiple triggers, missing conditions that could cause unexpected behavior
@@ -663,7 +665,7 @@ IMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation out
     const triggered = a.lastTriggered
       ? a.lastTriggered.toISOString().split("T")[0]
       : "never triggered";
-    return `### ${a.alias || a.haAutomationId} [${status}, last: ${triggered}]
+    return `### ${a.alias || a.haAutomationId} [id: ${a.haAutomationId}] [${status}, last: ${triggered}]
 ${a.description ? `Description: ${a.description}` : ""}
 Triggers: ${JSON.stringify(a.triggerConfig)}
 Conditions: ${JSON.stringify(a.conditionConfig)}

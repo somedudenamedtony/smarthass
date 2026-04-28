@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0
+
+- Deploying an automation now disables the old automations it replaces
+- AI automation review now outputs which existing automations a suggestion replaces
+- Deploy dialog shows which automations will be disabled before you confirm
+
 ## 1.5.9
 
 - Fix Docker cache not busting on new releases — use HA Supervisor BUILD_VERSION arg so code actually updates

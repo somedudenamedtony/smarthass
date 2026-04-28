@@ -47,6 +47,8 @@ export interface AnalysisMetadata {
   /** For trending data */
   trendDirection?: "improving" | "declining" | "stable" | "volatile";
   trendPercentage?: number;
+  /** HA automation config IDs that this insight replaces/consolidates */
+  replacesAutomationIds?: string[];
   /** Category tag for grouping */
   category?:
     | "usage_pattern"
