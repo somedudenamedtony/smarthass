@@ -57,6 +57,20 @@ export async function POST(request: NextRequest) {
     const client = HAClient.forInstance(instance[0].url, instance[0].encryptedToken);
     const result = await fullSync(instanceId, client);
 
+    // Refresh HA version while we have a live connection
+    const health = await client.healthCheck();
+    const instanceUpdates: { lastSyncAt: Date; status: "connected" | "error"; haVersion?: string | null } = {
+      lastSyncAt: new Date(),
+      status: health.ok ? "connected" : "error",
+    };
+    if (health.version) {
+      instanceUpdates.haVersion = health.version;
+    }
+    await db
+      .update(schema.haInstances)
+      .set(instanceUpdates)
+      .where(eq(schema.haInstances.id, instanceId));
+
     await db
       .update(schema.syncJobs)
       .set({

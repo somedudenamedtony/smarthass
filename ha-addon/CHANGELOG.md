@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.8
+
+- Fix stale HA version display — version is now refreshed from HA on every sync
+
 ## 1.5.7
 
 - Fix deploy dialog too narrow — override sm:max-w-sm default so the dialog actually uses the full 2xl width
